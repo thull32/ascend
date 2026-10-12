@@ -89,7 +89,7 @@ def number_value(tokens, i):
 def words(text):
     """Normalised words, so that "15 thousand", "fifteen thousand", "15,000"
     and Whisper's mixed "20 4" for twenty-four compare equal."""
-    text = text.lower().replace("-", " ").replace("%", " percent").replace("\u2019", "'")
+    text = text.lower().replace("-", " ").replace("%", " percent").replace("\u2019", "'").replace("++", " plus plus")
     # "a1" is heard as "a 1", and "promise dot then" written "promise.then".
     text = re.sub(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", " ", text)
     text = re.sub(r"(?<=[a-z])\.(?=[a-z])", " dot ", text)
@@ -127,9 +127,12 @@ def main():
     from faster_whisper import WhisperModel
 
     model = WhisperModel(a.model, device=a.device, compute_type="float16" if a.device == "cuda" else "int8")
-    scripts = [p for s in a.scripts for p in (sorted(s.rglob("*.md")) if s.is_dir() else [s])]
+    scripts = [p.resolve() for s in a.scripts for p in (sorted(s.rglob("*.md")) if s.is_dir() else [s])]
     for script in scripts:
         report(model, script, a.out, a.results)
+    if any(s.resolve() == SPOKEN for s in a.scripts):
+        for name, expected in daily_targets(a.out):
+            check(model, name, expected, a.out, a.results)
 
 
 def preload_cuda():
@@ -147,16 +150,54 @@ def preload_cuda():
                 pass
 
 
-def report(model, script: Path, out: Path, results: Path | None = None):
-    body = re.match(r"---\n.*?\n---\n(.*)", script.read_text(), re.S).group(1)
+SPOKEN = ROOT / "content" / "spoken-quizzes"
+
+
+def targets(script: Path, out: Path):
+    """(name, what it should say) for each render a script makes. A spoken
+    quiz makes one clip per question, whose sidecar keeps its text."""
+    import json
+
+    text = script.read_text()
+    meta = dict(re.findall(r"^(\w+):\s*(\S+)", text, re.M))
+    if SPOKEN in script.parents:
+        module = re.sub(r"^\d+-", "", script.parent.name)
+        for n in re.findall(r"^## (\d+)$", text, re.M):
+            name = f"q-{module}-{meta['lesson']}-{n}"
+            sidecar = out / f"{name}.json"
+            if sidecar.is_file():
+                yield name, json.loads(sidecar.read_text())["text"]
+        return
+    body = re.match(r"---\n.*?\n---\n(.*)", text, re.S).group(1)
     body = re.sub(r"^## .*$|^\[(pause|think)\]$|^@\d+(-\d+)?$", "", body, flags=re.M)
-    meta = dict(re.findall(r"^(\w+):\s*(\S+)", script.read_text(), re.M))
-    walkthrough = "walkthroughs" in script.parts
-    if walkthrough:
+    if "problem" in meta:
+        name = f"walk-problem-{meta['problem']}"
+    elif "walkthroughs" in script.parts:
         module = re.sub(r"^\d+-", "", script.parent.parent.name)
         name = meta.get("episode") or f"walk-{module}-{meta['lesson']}-{script.stem}"
     else:
         name = meta.get("episode") or meta.get("lesson") or f"{meta['review']}-{script.stem}"
+    sidecar = out / f"{name}.json"
+    if sidecar.is_file():
+        title = json.loads(sidecar.read_text()).get("title", "")
+        # The render opens with the title, which is not in the script's body.
+        intro = "Walkthrough" if "walk" in name.split("-")[0] else "Ascend"
+        yield name, f"{intro}. {title}.\n{body}"
+
+
+def daily_targets(out: Path):
+    import json
+
+    for sidecar in sorted(out.glob("q-daily-*.json")):
+        yield sidecar.stem, json.loads(sidecar.read_text())["text"]
+
+
+def report(model, script: Path, out: Path, results: Path | None = None):
+    for name, expected in targets(script, out):
+        check(model, name, expected, out, results)
+
+
+def check(model, name: str, expected: str, out: Path, results: Path | None = None):
     sidecar_path = out / f"{name}.json"
     if not sidecar_path.is_file():
         return
@@ -181,9 +222,8 @@ def report(model, script: Path, out: Path, results: Path | None = None):
     audio = np.interp(np.linspace(0, len(audio) - 1, n), np.arange(len(audio)), audio).astype(np.float32)
     segments, _ = model.transcribe(audio, language="en", vad_filter=True)
     heard = " ".join(s.text for s in segments)
-    # The render opens with the title, which is not in the script's body.
-    intro = f"{'Walkthrough' if walkthrough else 'Ascend'}. {sidecar.get('title', '')}."
-    want, got = words(f"{intro}\n{body}"), words(heard)
+    expected = re.sub(r"^\[(pause|think)\]$", "", expected, flags=re.M)
+    want, got = words(expected), words(heard)
     sm = difflib.SequenceMatcher(a=want, b=got, autojunk=False)
     matched, issues = 0, []
     for op, i1, i2, j1, j2 in sm.get_opcodes():

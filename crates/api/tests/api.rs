@@ -93,13 +93,18 @@ fn grader() -> Option<ascend_grader::Grader> {
 }
 
 async fn test_app() -> Option<TestApp> {
+    test_app_with(|_| {}).await
+}
+
+async fn test_app_with(customise: impl FnOnce(&mut Config)) -> Option<TestApp> {
     let Ok(url) = std::env::var("TEST_DATABASE_URL") else {
         // Offline developer runs may skip; CI must never pass by skipping.
         assert!(std::env::var_os("CI").is_none(), "TEST_DATABASE_URL must be set in CI");
         eprintln!("TEST_DATABASE_URL not set; skipping API integration test");
         return None;
     };
-    let cfg = config(&url);
+    let mut cfg = config(&url);
+    customise(&mut cfg);
     MIGRATED
         .get_or_init(|| async {
             let db = state::connect_db(&cfg).await.expect("connect");
@@ -688,6 +693,188 @@ async fn a_new_podcast_feed_url_revokes_the_old_one() {
     assert_eq!(r.status, StatusCode::NOT_FOUND);
     let r = app.call("GET", "/api/features", None, None, false).await;
     assert_eq!(r.body["audio"], false);
+}
+
+/// An S3 stand-in for the audio bucket: path-style `/<bucket>/<key>`, GET,
+/// PUT and DELETE, signatures ignored.
+type Objects = Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>>;
+
+async fn fake_bucket() -> (String, Objects) {
+    use axum::extract::{Request, State};
+    use axum::response::IntoResponse;
+    let objects: Objects = Arc::default();
+    let app = Router::new().fallback(|State(objects): State<Objects>, req: Request| async move {
+        let key = req.uri().path().trim_start_matches("/audio/").to_string();
+        let method = req.method().clone();
+        let body = axum::body::to_bytes(req.into_body(), usize::MAX).await.unwrap();
+        let mut objects = objects.lock().unwrap();
+        match method.as_str() {
+            "GET" => match objects.get(&key) {
+                Some(b) => (StatusCode::OK, b.clone()).into_response(),
+                None => StatusCode::NOT_FOUND.into_response(),
+            },
+            "PUT" => {
+                objects.insert(key, body.to_vec());
+                StatusCode::OK.into_response()
+            }
+            "DELETE" => {
+                objects.remove(&key);
+                StatusCode::NO_CONTENT.into_response()
+            }
+            _ => StatusCode::METHOD_NOT_ALLOWED.into_response(),
+        }
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let app = app.with_state(objects.clone());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    (format!("http://{addr}"), objects)
+}
+
+#[tokio::test]
+async fn listening_counts_and_the_daily_review_follows_the_schedule() {
+    let (endpoint, objects) = fake_bucket().await;
+    let Some(app) = test_app_with(|c| {
+        c.audio = Some(ascend_core::config::AudioStorage {
+            endpoint,
+            bucket: "audio".into(),
+            region: "auto".into(),
+            path_style: true,
+            access_key_id: "test".into(),
+            secret_access_key: SecretString::from("test-secret".to_string()),
+        })
+    })
+    .await
+    else {
+        return;
+    };
+    // Published: the lesson's episode, its two questions spoken, the fixed
+    // clips. Each clip is distinct bytes, so the join can be checked.
+    let clip = |name: &str, len: usize, byte: u8| {
+        objects.lock().unwrap().insert(format!("audio/{name}.mp3"), vec![byte; len]);
+        json!({"name": name, "duration": len as f64 / 12_000.0, "bytes": len})
+    };
+    let mut clips = vec![];
+    for (i, key) in ["intro", "outro", "n1", "n2"].into_iter().enumerate() {
+        let mut c = clip(&format!("q-daily-{key}"), 1_200 * (i + 1), i as u8);
+        c["daily"] = json!(key);
+        clips.push(c);
+    }
+    let mut questions = vec![];
+    for n in 1..=2u8 {
+        let mut c = clip(&format!("q-intro-hello-{n}"), 24_000, 10 + n);
+        c["lesson"] = json!("basics/intro/hello");
+        c["question"] = json!(n);
+        questions.push(c);
+    }
+    let manifest = json!({
+        "episodes": [{"name": "hello", "title": "Hello", "lesson": "hello", "review": null, "track": "basics",
+                      "module": "intro", "module_title": "Intro", "order": 1, "duration": 300.0, "bytes": 1000,
+                      "published": "2026-10-09T12:00:00Z"}],
+        "questions": questions,
+        "clips": clips,
+    });
+    objects.lock().unwrap().insert("manifest.json".into(), serde_json::to_vec(&manifest).unwrap());
+
+    let (cookie, user) = app.register().await;
+    let id: uuid::Uuid = user["id"].as_str().unwrap().parse().unwrap();
+    let r = app.call("GET", "/api/audio/review", None, Some(&cookie), false).await;
+    assert_eq!((r.status, &r.body), (StatusCode::OK, &Value::Null), "nothing studied, nothing to review");
+
+    // Listening saves the place, and finishing the episode counts.
+    let r = app.call("PUT", "/api/audio/listens/hello", Some(json!({"position": 42.5})), Some(&cookie), true).await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT);
+    let r = app.call("GET", "/api/audio", None, Some(&cookie), false).await;
+    assert_eq!(r.body["listens"]["hello"], json!({"position": 42.5, "heard": false}));
+    let r = app.call("PUT", "/api/audio/listens/nope", Some(json!({"position": 1})), Some(&cookie), true).await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND);
+    let r = app
+        .call("PUT", "/api/audio/listens/hello", Some(json!({"position": 9999, "finished": true})), Some(&cookie), true)
+        .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT);
+    let r = app.call("GET", "/api/audio", None, Some(&cookie), false).await;
+    assert_eq!(r.body["listens"]["hello"], json!({"position": 300.0, "heard": true}), "clamped to the episode");
+    let r = app.call("GET", "/api/progress", None, Some(&cookie), false).await;
+    assert!(r.body["in_progress_slugs"].as_array().unwrap().contains(&json!("basics/intro/hello")), "{:?}", r.body);
+
+    // The heard lesson's questions make today's review, joined in order.
+    let r = app.call("GET", "/api/audio/review", None, Some(&cookie), false).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    let review = r.body.clone();
+    let items = review["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["question"], "basics/intro/hello#1");
+    assert_eq!(items[0]["lesson_title"], "Hello");
+    assert_eq!(items[0]["start"], json!(0.1), "after the 1,200-byte intro");
+    assert_eq!(items[1]["start"], json!((1_200 + 3_600 + 24_000) as f64 / 12_000.0));
+    let expected: Vec<u8> =
+        [vec![0u8; 1_200], vec![2; 3_600], vec![11; 24_000], vec![3; 4_800], vec![12; 24_000], vec![1; 2_400]].concat();
+    assert_eq!(review["bytes"], json!(expected.len()));
+    {
+        let objects = objects.lock().unwrap();
+        let stored: Vec<_> = objects.iter().filter(|(k, _)| k.starts_with("reviews/")).collect();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].1, &expected, "the clips are joined byte for byte");
+    }
+    let day = review["day"].as_str().unwrap().to_string();
+    let schedule = |q: &'static str| {
+        let db = app.db.clone();
+        async move {
+            let row = db
+                .query_one_raw(Statement::from_sql_and_values(
+                    sea_orm::DatabaseBackend::Postgres,
+                    "SELECT box, (due - current_date) AS days FROM review_items WHERE user_id = $1 AND question = $2",
+                    [id.into(), q.into()],
+                ))
+                .await
+                .unwrap()
+                .unwrap();
+            (row.try_get::<i16>("", "box").unwrap(), row.try_get::<i32>("", "days").unwrap())
+        }
+    };
+    assert_eq!(schedule("basics/intro/hello#1").await, (1, 1), "heard once: box 1, due tomorrow");
+    let again = app.call("GET", "/api/audio/review", None, Some(&cookie), false).await;
+    assert_eq!(again.body["items"], review["items"], "one review a day");
+
+    // Marks: a miss sends the question back to box 1; the quiz feeds the schedule.
+    let graded = app
+        .call(
+            "POST",
+            &format!("/api/audio/review/{day}/grade"),
+            Some(json!({"question": "basics/intro/hello#2", "got": false})),
+            Some(&cookie),
+            true,
+        )
+        .await;
+    assert_eq!(graded.body["items"][1]["got"], false);
+    let r = app
+        .call("POST", "/api/quizzes/basics/intro/hello/grade", Some(json!({"answers": [1, 0]})), Some(&cookie), true)
+        .await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(schedule("basics/intro/hello#2").await, (1, 1));
+    assert_eq!(schedule("basics/intro/hello#1").await, (1, 1), "a correct answer leaves a scheduled question alone");
+
+    // The podcast feed carries the review, its MP3 and its chapters.
+    let token = app.state.audio.new_feed(id).await.unwrap();
+    let r = app.call("GET", &format!("/api/audio/feed/{token}.xml"), None, None, false).await;
+    assert_eq!(r.status, StatusCode::OK);
+    let r = app.call("GET", &format!("/api/audio/feed/{token}/review-{day}.chapters.json"), None, None, false).await;
+    assert_eq!(r.body["chapters"][1]["title"], "Question 2: Hello");
+    let r = app.call("GET", &format!("/api/audio/feed/{token}/review-{day}.mp3"), None, None, false).await;
+    assert_eq!(r.status, StatusCode::TEMPORARY_REDIRECT);
+    assert!(r.headers[header::LOCATION].to_str().unwrap().contains("/audio/reviews/"));
+
+    // After 30 days the review and its episode go.
+    app.db
+        .execute_raw(Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            "UPDATE audio_reviews SET day = day - 40 WHERE user_id = $1",
+            [id.into()],
+        ))
+        .await
+        .unwrap();
+    assert!(app.state.review.expire(30).await.unwrap() >= 1);
+    assert!(!objects.lock().unwrap().keys().any(|k| k.starts_with("reviews/")), "the episode is deleted");
 }
 
 #[tokio::test]

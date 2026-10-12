@@ -13,6 +13,8 @@ Free learning platform taking mid-level engineers to senior at top-tier companie
 - Audio: scripts for listening live in `content/audio` (`content/AUDIO_GUIDE.md`). `python3 scripts/audio/check.py`
   (CI) flags a script stale when its lesson changes: review it, then `--fix-source`. Render, verify and publish with
   `uv run scripts/audio/{render,verify,publish}.py`.
+- Problem walkthroughs: `scripts/safe_py.sh scripts/trace_solution.py content/problem-walkthroughs/<slug>.md --print` records the
+  solution's run that the narration steps through (`content/AUDIO_GUIDE.md`). Re-run it when a solution's code changes.
 - Quizzes: `make quizzes` after editing any quiz (canonical option order; CI checks it). `make minutes` after editing lesson prose.
 - Web: `cd web && pnpm typecheck && pnpm test`; e2e: `make e2e` (needs a running server)
 

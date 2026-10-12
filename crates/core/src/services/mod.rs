@@ -11,6 +11,7 @@ pub mod quiz;
 pub mod rate_limit;
 pub mod reference;
 pub mod retention;
+pub mod review;
 pub mod roadmap;
 pub mod submissions;
 
@@ -19,5 +20,6 @@ pub use interviews::InterviewService;
 pub use progress::ProgressService;
 pub use quiz::QuizService;
 pub use rate_limit::SharedLimiter;
+pub use review::ReviewService;
 pub use roadmap::RoadmapService;
 pub use submissions::SubmissionService;

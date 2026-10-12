@@ -109,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
     {
         let auth = state.auth.clone();
         let limiter = state.limiter.clone();
+        let review = state.review.clone();
         let db = state.db.clone();
         tokio::spawn(async move {
             let mut tick = tokio::time::interval(Duration::from_secs(3600));
@@ -123,6 +124,10 @@ async fn main() -> anyhow::Result<()> {
                 // One replica per round (advisory lock); see retention.rs.
                 if let Err(e) = ascend_core::services::retention::run(&db, Default::default()).await {
                     tracing::warn!(error = %e, "retention round failed");
+                }
+                // Daily review episodes are kept for 30 days (the privacy page says so).
+                if let Err(e) = review.expire(30).await {
+                    tracing::warn!(error = %e, "expiring daily reviews failed");
                 }
             }
         });

@@ -116,9 +116,15 @@ fn default_problem_time_limit() -> u32 {
 
 // ---------- file collection ----------
 
+/// Markdown, and the recorded solution traces of problem walkthroughs.
+fn wanted(path: &Path) -> bool {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    name.ends_with(".md") || name.ends_with(".trace.json")
+}
+
 fn collect_embedded(dir: &Dir<'static>, out: &mut BTreeMap<String, String>) {
     for f in dir.files() {
-        if f.path().extension().and_then(|e| e.to_str()) == Some("md")
+        if wanted(f.path())
             && let Some(text) = f.contents_utf8()
         {
             out.insert(f.path().to_string_lossy().replace('\\', "/"), text.to_string());
@@ -135,7 +141,7 @@ fn collect_disk(root: &Path, dir: &Path, out: &mut BTreeMap<String, String>) -> 
         let path = entry.path();
         if path.is_dir() {
             collect_disk(root, &path, out)?;
-        } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
+        } else if wanted(&path) {
             let rel = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().replace('\\', "/");
             out.insert(rel, std::fs::read_to_string(&path)?);
         }
@@ -465,7 +471,30 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
         .map(|(slug, (lesson, count))| Pattern { title: title_case(&slug), slug, lesson, problem_count: count })
         .collect();
 
-    Ok(Arc::new(Curriculum { tracks, lessons, problems, problems_by_slug, patterns, version, search }))
+    // --- narrated problem walkthroughs: the solution traces they step through ---
+    let mut solution_traces = HashMap::new();
+    for (path, text) in
+        files.iter().filter(|(p, _)| p.starts_with("problem-walkthroughs/") && p.ends_with(".trace.json"))
+    {
+        let trace: SolutionTrace = match serde_json::from_str(text) {
+            Ok(t) => t,
+            Err(e) if lenient() => {
+                eprintln!("warning: skipping {path}: {e} (lenient mode)");
+                continue;
+            }
+            Err(e) => return Err(ContentError::FrontMatter { file: path.clone(), reason: e.to_string() }),
+        };
+        if !problems_by_slug.contains_key(&trace.problem) {
+            if lenient() {
+                eprintln!("warning: {path}: unknown problem '{}' (lenient mode)", trace.problem);
+                continue;
+            }
+            return Err(ContentError::DanglingRef { file: path.clone(), kind: "problem", slug: trace.problem });
+        }
+        solution_traces.insert(trace.problem.clone(), Arc::new(trace));
+    }
+
+    Ok(Arc::new(Curriculum { tracks, lessons, problems, problems_by_slug, solution_traces, patterns, version, search }))
 }
 
 fn check_links(

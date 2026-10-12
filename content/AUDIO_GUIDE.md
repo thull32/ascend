@@ -162,3 +162,78 @@ How to write one (the binary search walkthrough is the model):
 
 Run `web/src/viz/walkthroughs.test.ts` and `scripts/audio/check.py` after writing one; render, verify
 and publish it like an episode.
+
+## Problem walkthroughs
+
+A problem walkthrough narrates a practice problem's solution running on one small example, line by line.
+The problem page shows the code with the current line highlighted, the variables and the call stack, and
+steps through them in time with the voice.
+
+    content/problem-walkthroughs/<problem slug>.md           (narration)
+    content/problem-walkthroughs/<problem slug>.trace.json   (recorded by scripts/trace_solution.py)
+
+```yaml
+---
+problem: add-two-numbers                          # the problem's slug (and the file name)
+args: [{"$list": [9, 9]}, {"$list": [1]}]         # the example: one test case's args, as JSON on one line
+block: 2                                          # optional: which ```python block of the solution (1-based);
+                                                  # default the one under "### The optimal approach"
+frames: 33                                        # frames in the trace
+source: a0d209eb21bc5f41                          # hash of the traced code and args (check.py --fix-source)
+---
+```
+
+Its audio is published as `walk-problem-<slug>`. Design problems (a class) take `args` as the list of
+calls, as in their tests: `[["__init__", 2], ["put", 1, 1], ["get", 1]]`.
+
+1. Choose the example. Small enough to follow by ear, big enough to exercise what the solution is about:
+   the carry that outlives both lists, the duplicate that moves the window, the cycle. Aim for 20 to 90
+   frames; the tracer refuses more than 300.
+2. Trace it: `scripts/safe_py.sh scripts/trace_solution.py content/problem-walkthroughs/<slug>.md --print`.
+   It writes the trace and prints every frame: the line about to run, the stack, and the variables
+   **before** that line runs (so at `total += a.val`, `total` still holds the old value). The last frame
+   of a call also shows what it returns.
+3. Write the narration with the same cues as a visualisation walkthrough (`@N` shows frame N, `@N-M`
+   plays frames N to M across the paragraph). Open at `@0` with the insight that makes the solution
+   work; walk the trace in order, using ranges for repetitive iterations and slowing down where the
+   interesting thing happens; close with the cost and the mistake the problem is known for. 250 to 700
+   words. Say the values the listener needs as the frame shows them. Code is spoken as ideas ("divmod
+   splits ten into a carry and a digit"), not read out symbol by symbol.
+4. `scripts/safe_py.sh scripts/audio/check.py --fix-source content/problem-walkthroughs/<slug>.md`, then
+   check it without `--fix-source` until it reports no problems.
+
+When the solution's code or the example changes, the trace is stale: re-run the tracer, review the
+narration against the new frames, then `--fix-source`.
+
+## Spoken quizzes (the daily review)
+
+Every quiz question that works by ear also has a spoken version: a short clip that the daily review
+episode, built for each learner from what they have missed and what is due, strings together.
+
+    content/spoken-quizzes/<track>/<module>/<lesson file>.md
+
+```yaml
+---
+lesson: why-big-o                    # the lesson's slug
+source: 1c9e0d0e5f6a7b8c             # hash of the lesson's quiz block (check.py --fix-source)
+---
+```
+
+The body has one `## N` section per question, where N is the question's position in the lesson's quiz
+(1-based), in order. Each becomes its own clip, `q-<module>-<lesson>-<N>`, and the renderer opens it with
+"From <the lesson's title>.", so do not name the lesson yourself.
+
+- The question, rephrased for the ear with its meaning unchanged. It must stand alone: no "as above".
+- The options as "A, … B, … C, … D, …", in the quiz's order.
+- `[think]` on its own line.
+- "The answer is C: …" (the checker compares the letter with the quiz), then the quiz's explanation in
+  spoken form, two to four sentences.
+- 60 to 220 words. All the audio rules apply: no symbols ("order n squared", not O(n²)), units spoken.
+- Include every question that can be put into words faithfully. Leave out only those whose point is a
+  code listing, a table or a calculation that cannot be followed without paper, and say which in the
+  report. The module's review episodes (content/audio/.../review-N.md) already speak some questions:
+  reuse their wording.
+
+Two front-matter options for awkward solutions: `prelude: 3` runs that Python block of the solution first,
+untraced, for helpers the solution uses but does not define (a node class, an entry point that builds the
+input); `max_frames: 800` raises the 300-frame limit (up to 1,200) when the smallest honest example is long.

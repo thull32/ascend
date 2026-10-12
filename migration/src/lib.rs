@@ -29,6 +29,7 @@ mod m0012_email_tokens;
 mod m0013_retention_indexes;
 mod m0014_invites;
 mod m0015_audio_feeds;
+mod m0016_listening;
 
 pub struct Migrator;
 
@@ -51,6 +52,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0013_retention_indexes::Migration),
             Box::new(m0014_invites::Migration),
             Box::new(m0015_audio_feeds::Migration),
+            Box::new(m0016_listening::Migration),
         ]
     }
 }

@@ -1,11 +1,12 @@
 import { Link } from "react-router";
 import { PageTitle } from "../components/ui";
-import { PRIVACY_UPDATED } from "./Privacy";
+// Changes when these terms change, not when the privacy page does.
+const TERMS_UPDATED = "29 September 2026";
 
 export default function Terms() {
   return (
     <article className="prose-ascend prose mx-auto max-w-3xl" data-testid="terms">
-      <PageTitle title="Terms of use" subtitle={`Last updated ${PRIVACY_UPDATED}`} />
+      <PageTitle title="Terms of use" subtitle={`Last updated ${TERMS_UPDATED}`} />
       <p>Ascend is free. By creating an account or using the site you agree to these terms.</p>
 
       <h2>Using Ascend</h2>

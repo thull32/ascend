@@ -8,6 +8,7 @@
 //! The feed URL carries a 256-bit token (only its hash is stored, one per
 //! learner; making a new one revokes the old). It authorises reading the feed
 //! and its episodes and nothing else.
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -19,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+use super::review::DailyReview;
 use crate::auth::token;
 use crate::config::AudioStorage;
 use crate::error::{AppError, AppResult};
@@ -86,11 +88,57 @@ pub struct Cue {
     pub start: f64,
 }
 
+/// A narrated walkthrough of a practice problem's solution: the problem
+/// page steps through the solution's recorded trace in time with it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProblemWalkthrough {
+    pub name: String,
+    pub title: String,
+    pub problem: String,
+    pub duration: f64,
+    pub bytes: u64,
+    pub cues: Vec<Cue>,
+}
+
+/// One quiz question, spoken: a clip the daily review is assembled from.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuestionClip {
+    pub name: String,
+    /// The lesson's key, `track/module/lesson`.
+    pub lesson: String,
+    /// 1-based position in the lesson's quiz.
+    pub question: u32,
+    pub duration: f64,
+    pub bytes: u64,
+}
+
+/// A fixed clip of the daily review: `intro`, `outro`, `n1`..`n12`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Clip {
+    pub name: String,
+    pub daily: String,
+    pub duration: f64,
+    pub bytes: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Manifest {
     pub episodes: Vec<Episode>,
     #[serde(default)]
     pub walkthroughs: Vec<Walkthrough>,
+    #[serde(default)]
+    pub problems: Vec<ProblemWalkthrough>,
+    #[serde(default)]
+    pub questions: Vec<QuestionClip>,
+    #[serde(default)]
+    pub clips: Vec<Clip>,
+}
+
+/// Where a learner is in an episode.
+#[derive(Debug, Clone, Serialize)]
+pub struct Listen {
+    pub position: f64,
+    pub heard: bool,
 }
 
 /// The last manifest fetched, and when.
@@ -133,9 +181,41 @@ impl AudioService {
     }
 
     /// A signed, short-lived URL to an object in the bucket.
-    fn sign(&self, key: &str) -> AppResult<url::Url> {
+    pub(crate) fn sign(&self, key: &str) -> AppResult<url::Url> {
         let store = self.store()?;
         Ok(store.bucket.get_object(Some(&store.credentials), key).sign(LINK_TTL))
+    }
+
+    fn unavailable(what: &str, e: impl std::fmt::Display) -> AppError {
+        AppError::Unavailable { message: format!("audio bucket, {what}: {e}"), retry_after_secs: None }
+    }
+
+    /// An object's bytes.
+    pub(crate) async fn fetch(&self, key: &str) -> AppResult<Vec<u8>> {
+        let res = self.http.get(self.sign(key)?).send().await.map_err(|e| Self::unavailable(key, e))?;
+        let res = res.error_for_status().map_err(|e| Self::unavailable(key, e))?;
+        Ok(res.bytes().await.map_err(|e| Self::unavailable(key, e))?.to_vec())
+    }
+
+    pub(crate) async fn upload(&self, key: &str, body: Vec<u8>, content_type: &str) -> AppResult<()> {
+        let store = self.store()?;
+        let url = store.bucket.put_object(Some(&store.credentials), key).sign(Duration::from_secs(600));
+        self.http
+            .put(url)
+            .header(reqwest::header::CONTENT_TYPE, content_type)
+            .body(body)
+            .send()
+            .await
+            .and_then(|r| r.error_for_status())
+            .map_err(|e| Self::unavailable(key, e))?;
+        Ok(())
+    }
+
+    pub(crate) async fn remove(&self, key: &str) -> AppResult<()> {
+        let store = self.store()?;
+        let url = store.bucket.delete_object(Some(&store.credentials), key).sign(Duration::from_secs(600));
+        self.http.delete(url).send().await.and_then(|r| r.error_for_status()).map_err(|e| Self::unavailable(key, e))?;
+        Ok(())
     }
 
     /// The published episodes, cached for a few minutes. If the bucket is
@@ -153,7 +233,7 @@ impl AudioService {
                 retry_after_secs: None,
             })?;
             if res.status() == reqwest::StatusCode::NOT_FOUND {
-                return Ok(Manifest { episodes: Vec::new(), walkthroughs: Vec::new() });
+                return Ok(Manifest::default());
             }
             let res = res.error_for_status().map_err(|e| AppError::Unavailable {
                 message: format!("audio manifest: {e}"),
@@ -190,12 +270,85 @@ impl AudioService {
     /// next few hours.
     pub async fn episode_url(&self, name: &str) -> AppResult<url::Url> {
         let manifest = self.manifest().await?;
-        let known =
-            manifest.episodes.iter().any(|e| e.name == name) || manifest.walkthroughs.iter().any(|w| w.name == name);
+        let known = manifest.episodes.iter().any(|e| e.name == name)
+            || manifest.walkthroughs.iter().any(|w| w.name == name)
+            || manifest.problems.iter().any(|w| w.name == name);
         if !known {
             return Err(AppError::NotFound("episode"));
         }
         self.sign(&format!("audio/{name}.mp3"))
+    }
+
+    /// The narrated walkthrough of a problem's solution, once published.
+    pub async fn problem_walkthrough(&self, problem: &str) -> AppResult<Option<ProblemWalkthrough>> {
+        if !self.enabled() {
+            return Ok(None);
+        }
+        Ok(self.manifest().await?.problems.iter().find(|w| w.problem == problem).cloned())
+    }
+
+    /// Where the learner is in each episode they have started.
+    pub async fn listens(&self, user_id: Uuid) -> AppResult<HashMap<String, Listen>> {
+        let rows = self
+            .db
+            .query_all_raw(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                "SELECT name, position, heard_at IS NOT NULL AS heard FROM audio_listens WHERE user_id = $1",
+                [user_id.into()],
+            ))
+            .await?;
+        rows.into_iter()
+            .map(|r| {
+                Ok((
+                    r.try_get("", "name")?,
+                    Listen { position: r.try_get("", "position")?, heard: r.try_get("", "heard")? },
+                ))
+            })
+            .collect()
+    }
+
+    /// Saves the learner's place in an episode. `finished` marks it heard;
+    /// finishing a lesson's episode starts the lesson in their progress (a
+    /// completed lesson stays completed) and counts toward today's streak.
+    pub async fn save_listen(&self, user_id: Uuid, name: &str, position: f64, finished: bool) -> AppResult<()> {
+        let manifest = self.manifest().await?;
+        let (duration, lesson) = if let Some(e) = manifest.episodes.iter().find(|e| e.name == name) {
+            (e.duration, e.lesson.as_ref().map(|l| format!("{}/{}/{l}", e.track, e.module)))
+        } else if let Some(w) = manifest.walkthroughs.iter().find(|w| w.name == name) {
+            (w.duration, None)
+        } else if let Some(w) = manifest.problems.iter().find(|w| w.name == name) {
+            (w.duration, None)
+        } else {
+            return Err(AppError::NotFound("episode"));
+        };
+        if !position.is_finite() {
+            return Err(AppError::validation("position must be a number of seconds"));
+        }
+        let position = position.clamp(0.0, duration);
+        let txn = self.db.begin().await?;
+        txn.execute_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "INSERT INTO audio_listens (user_id, name, lesson, position, heard_at, updated_at) \
+             VALUES ($1, $2, $3, $4, CASE WHEN $5 THEN now() END, now()) \
+             ON CONFLICT (user_id, name) DO UPDATE SET position = EXCLUDED.position, \
+               heard_at = COALESCE(audio_listens.heard_at, EXCLUDED.heard_at), updated_at = now()",
+            [user_id.into(), name.into(), lesson.clone().into(), position.into(), finished.into()],
+        ))
+        .await?;
+        if finished && let Some(lesson) = lesson {
+            txn.execute_raw(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                "INSERT INTO lesson_progress (user_id, lesson_slug, status, completed_at, created_at, updated_at) \
+                 VALUES ($1, $2, 'in_progress', NULL, now(), now()) \
+                 ON CONFLICT (user_id, lesson_slug) DO UPDATE SET updated_at = now() \
+                 WHERE lesson_progress.status = 'in_progress'",
+                [user_id.into(), lesson.into()],
+            ))
+            .await?;
+            super::activity::record(&txn, user_id).await?;
+        }
+        txn.commit().await?;
+        Ok(())
     }
 
     /// Makes the learner's feed token, replacing any earlier one. Returned
@@ -261,8 +414,9 @@ fn duration(seconds: f64) -> String {
 
 /// The private podcast feed. `base` is the feed's own directory URL, e.g.
 /// `https://ascend.engineering/api/audio/feed/<token>`; episodes and their
-/// chapter files are served beneath it.
-pub fn rss(manifest: &Manifest, base: &str, site: &str) -> String {
+/// chapter files are served beneath it. The learner's recent daily reviews
+/// come first, as bonus episodes.
+pub fn rss(manifest: &Manifest, reviews: &[DailyReview], base: &str, site: &str) -> String {
     let mut out = String::with_capacity(4096 + manifest.episodes.len() * 1200);
     out.push_str(r#"<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
@@ -281,6 +435,35 @@ pub fn rss(manifest: &Manifest, base: &str, site: &str) -> String {
         "<itunes:image href=\"{0}/podcast-artwork.png\"/>\n<image><url>{0}/podcast-artwork.png</url><title>Ascend</title><link>{0}</link></image>\n",
         esc(site.trim_end_matches('/'))
     ));
+    for r in reviews {
+        out.push_str("<item>\n");
+        out.push_str(&format!("<title>{}</title>\n", esc(&r.title)));
+        let lessons: Vec<&str> = r.items.iter().map(|i| i.lesson_title.as_str()).collect();
+        out.push_str(&format!(
+            "<description>{}</description>\n",
+            esc(&format!(
+                "{} questions, from what you have missed and what is due again: {}. Mark the ones you missed on the Listen page and they come back tomorrow.",
+                r.items.len(),
+                lessons.join("; ")
+            ))
+        ));
+        out.push_str(&format!("<guid isPermaLink=\"false\">ascend-review-{}</guid>\n", r.day));
+        out.push_str(&format!("<pubDate>{}</pubDate>\n", r.created_at.to_rfc2822()));
+        out.push_str(&format!(
+            "<enclosure url=\"{}/review-{}.mp3\" length=\"{}\" type=\"audio/mpeg\"/>\n",
+            esc(base),
+            r.day,
+            r.bytes
+        ));
+        out.push_str(&format!("<itunes:duration>{}</itunes:duration>\n", duration(r.duration)));
+        out.push_str("<itunes:episodeType>bonus</itunes:episodeType>\n");
+        out.push_str(&format!(
+            "<podcast:chapters url=\"{}/review-{}.chapters.json\" type=\"application/json+chapters\"/>\n",
+            esc(base),
+            r.day
+        ));
+        out.push_str("</item>\n");
+    }
     for (i, e) in manifest.episodes.iter().enumerate() {
         let mut notes = String::new();
         notes.push_str(&format!("{}.", e.module_title));
@@ -327,6 +510,17 @@ pub fn rss(manifest: &Manifest, base: &str, site: &str) -> String {
     out
 }
 
+/// Podcasting 2.0 chapters for a daily review: one per question.
+pub fn review_chapters_json(r: &DailyReview) -> serde_json::Value {
+    serde_json::json!({
+        "version": "1.2.0",
+        "chapters": r.items.iter().enumerate().map(|(i, q)| serde_json::json!({
+            "startTime": q.start,
+            "title": format!("Question {}: {}", i + 1, q.lesson_title),
+        })).collect::<Vec<_>>(),
+    })
+}
+
 /// Podcasting 2.0 chapters for one episode.
 pub fn chapters_json(e: &Episode) -> serde_json::Value {
     serde_json::json!({
@@ -360,8 +554,8 @@ mod tests {
 
     #[test]
     fn the_feed_is_escaped_ordered_and_points_beneath_its_own_url() {
-        let m = Manifest { episodes: vec![episode("caching-strategies", 4)], walkthroughs: Vec::new() };
-        let xml = rss(&m, "https://ascend.engineering/api/audio/feed/TOKEN", "https://ascend.engineering");
+        let m = Manifest { episodes: vec![episode("caching-strategies", 4)], ..Default::default() };
+        let xml = rss(&m, &[], "https://ascend.engineering/api/audio/feed/TOKEN", "https://ascend.engineering");
         assert!(xml.contains("<title>Caching &amp; &lt;stampedes&gt;</title>"), "{xml}");
         assert!(xml.contains(r#"<enclosure url="https://ascend.engineering/api/audio/feed/TOKEN/caching-strategies.mp3" length="5400000" type="audio/mpeg"/>"#));
         assert!(xml.contains("<itunes:duration>0:11:18</itunes:duration>"));

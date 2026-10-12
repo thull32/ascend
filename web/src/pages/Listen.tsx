@@ -1,9 +1,9 @@
-import { Check, Copy, Headphones, ListChecks, Pause, Play, Podcast, Rewind, FastForward, SkipForward } from "lucide-react";
+import { Check, Copy, Headphones, ListChecks, Pause, Play, Podcast, Rewind, FastForward, SkipForward, Repeat, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../lib/api";
-import { formatDuration, heardSet, markHeard, savedPosition, savePosition, useAudio, type Episode } from "../lib/audio";
+import { formatDuration, migrateLocalListens, saveListen, useAudio, type AudioChapter, type DailyReview, type Episode } from "../lib/audio";
 import { Badge, Button, Card, EmptyState, ErrorBox, PageTitle, Spinner } from "../components/ui";
 import { cn } from "../lib/utils";
 
@@ -21,10 +21,12 @@ function loadSpeed(): number {
 
 export default function Listen() {
   const audioQ = useAudio();
+  const qc = useQueryClient();
   const [params] = useSearchParams();
   const episodes = useMemo(() => audioQ.data?.episodes ?? [], [audioQ.data]);
+  const listens = audioQ.data?.listens ?? {};
   const [current, setCurrent] = useState<Episode | null>(null);
-  const [heard, setHeard] = useState(heardSet);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // /listen?play=<lesson slug or episode name> starts that episode.
   useEffect(() => {
@@ -35,6 +37,15 @@ export default function Listen() {
     }
   }, [params, episodes, current]);
 
+  // Once: move listening state an older version kept in this browser.
+  const migrated = useRef(false);
+  useEffect(() => {
+    if (audioQ.data && !migrated.current) {
+      migrated.current = true;
+      void migrateLocalListens(audioQ.data).then(() => qc.invalidateQueries({ queryKey: ["audio"] }));
+    }
+  }, [audioQ.data, qc]);
+
   const groups = useMemo(() => {
     const m = new Map<string, Episode[]>();
     for (const e of episodes) m.set(e.module_title, [...(m.get(e.module_title) ?? []), e]);
@@ -42,16 +53,28 @@ export default function Listen() {
   }, [episodes]);
 
   const next = (e: Episode) => episodes[episodes.findIndex((x) => x.name === e.name) + 1] ?? null;
+  const play = (e: Episode | null) => {
+    setReviewOpen(false);
+    setCurrent(e);
+  };
 
   if (audioQ.isLoading) return <Spinner className="mt-20" />;
 
   return (
-    <div className={cn("mx-auto max-w-3xl", current && "pb-56")}>
+    <div className={cn("mx-auto max-w-3xl", (current || reviewOpen) && "pb-64")}>
       <PageTitle
         title="Listen"
         subtitle="Lessons rewritten for listening, for runs, drives and walks, plus spoken quizzes. What needs a screen goes on each episode's desk list."
       />
       {audioQ.error ? <ErrorBox error={audioQ.error} /> : null}
+      <DailyReviewCard
+        open={reviewOpen}
+        onOpen={() => {
+          setCurrent(null);
+          setReviewOpen(true);
+        }}
+        onClose={() => setReviewOpen(false)}
+      />
       <FeedCard hasFeed={!!audioQ.data?.has_feed} />
       {episodes.length === 0 && !audioQ.isLoading ? (
         <EmptyState title="No episodes yet" body="Audio editions are being recorded; they appear here as they are published." />
@@ -61,7 +84,14 @@ export default function Listen() {
           <h2 className="mb-3 text-lg font-semibold">{module}</h2>
           <ul className="space-y-2">
             {list.map((e) => (
-              <EpisodeRow key={e.name} e={e} playing={current?.name === e.name} heard={heard.has(e.name)} onPlay={() => setCurrent(e)} />
+              <EpisodeRow
+                key={e.name}
+                e={e}
+                playing={current?.name === e.name}
+                heard={!!listens[e.name]?.heard}
+                resume={listens[e.name]?.heard ? 0 : (listens[e.name]?.position ?? 0)}
+                onPlay={() => play(e)}
+              />
             ))}
           </ul>
         </section>
@@ -69,10 +99,15 @@ export default function Listen() {
       {current && (
         <Player
           key={current.name}
-          episode={current}
+          title={current.title}
+          subtitle={current.module_title}
+          src={`/api/audio/play/${encodeURIComponent(current.name)}`}
+          duration={current.duration}
+          chapters={current.chapters}
+          startAt={listens[current.name]?.heard ? 0 : (listens[current.name]?.position ?? 0)}
+          onProgress={(t) => void saveListen(qc, current.name, t)}
           onEnded={() => {
-            markHeard(current.name);
-            setHeard(heardSet());
+            void saveListen(qc, current.name, current.duration, true);
             setCurrent(next(current));
           }}
           onNext={() => setCurrent(next(current))}
@@ -82,9 +117,100 @@ export default function Listen() {
   );
 }
 
-function EpisodeRow({ e, playing, heard, onPlay }: { e: Episode; playing: boolean; heard: boolean; onPlay: () => void }) {
+/** Today's review: spoken questions from what the learner missed and what is due. */
+function DailyReviewCard({ open, onOpen, onClose }: { open: boolean; onOpen: () => void; onClose: () => void }) {
+  const qc = useQueryClient();
+  const reviewQ = useQuery({ queryKey: ["audio", "review"], queryFn: () => api.get<DailyReview | null>("/audio/review"), staleTime: 10 * 60_000 });
+  const [time, setTime] = useState(0);
+  const grade = useMutation({
+    mutationFn: ({ question, got }: { question: string; got: boolean }) =>
+      api.post<DailyReview>(`/audio/review/${reviewQ.data!.day}/grade`, { question, got }),
+    onSuccess: (r) => qc.setQueryData(["audio", "review"], r),
+  });
+  const review = reviewQ.data;
+  if (reviewQ.isLoading || reviewQ.error) return null;
+  if (!review) {
+    return (
+      <Card className="mt-6 p-4 text-sm">
+        <div className="flex items-start gap-3">
+          <Repeat className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+          <div>
+            <div className="font-medium">Daily review</div>
+            <p className="mt-1 text-muted">
+              Study or listen to a lesson, or take its quiz, and a short spoken review starts here: its questions come back at growing intervals, and the ones you miss come back sooner.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+  const chapters: AudioChapter[] = review.items.map((q, i) => ({
+    title: `Question ${i + 1}: ${q.lesson_title}`,
+    start: q.start,
+    end: review.items[i + 1]?.start ?? review.duration,
+  }));
+  // The question playing, or the last one played: the one to mark.
+  const at = review.items.reduce((k, q, i) => (time >= q.start ? i : k), -1);
+  return (
+    <Card className="mt-6 p-4 text-sm">
+      <div className="flex items-start gap-3">
+        <Repeat className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">{review.title}</div>
+          <p className="mt-1 text-muted">
+            {review.items.length} questions, {formatDuration(review.duration)}. Answer out loud before the answer comes, then mark it: what you miss comes back tomorrow, what you know waits longer. It is in your podcast feed too.
+          </p>
+          {!open && (
+            <Button className="mt-3" onClick={onOpen}>
+              <Play className="mr-1 h-4 w-4" /> Play today's review
+            </Button>
+          )}
+          <ol className="mt-3 space-y-1">
+            {review.items.map((q, i) => (
+              <li key={q.question} className={cn("flex items-center gap-2 rounded-md px-2 py-1", open && i === at && "bg-elev-2")}>
+                <span className="w-5 shrink-0 text-xs tabular-nums text-muted">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate">{q.lesson_title}</span>
+                <button
+                  onClick={() => grade.mutate({ question: q.question, got: true })}
+                  className={cn("rounded-full border border-line px-2 py-0.5 text-xs", q.got === true ? "border-emerald-500 text-emerald-500" : "text-muted hover:text-fg")}
+                  aria-pressed={q.got === true}
+                  aria-label={`Got question ${i + 1}`}
+                >
+                  <Check className="inline h-3 w-3" /> got it
+                </button>
+                <button
+                  onClick={() => grade.mutate({ question: q.question, got: false })}
+                  className={cn("rounded-full border border-line px-2 py-0.5 text-xs", q.got === false ? "border-rose-500 text-rose-500" : "text-muted hover:text-fg")}
+                  aria-pressed={q.got === false}
+                  aria-label={`Missed question ${i + 1}`}
+                >
+                  <X className="inline h-3 w-3" /> missed
+                </button>
+              </li>
+            ))}
+          </ol>
+          {grade.error ? <ErrorBox error={grade.error} className="mt-2" /> : null}
+        </div>
+      </div>
+      {open && (
+        <Player
+          key={review.day}
+          title={review.title}
+          subtitle="Daily review"
+          src={`/api/audio/review/${review.day}/play`}
+          duration={review.duration}
+          chapters={chapters}
+          startAt={0}
+          onTime={setTime}
+          onEnded={onClose}
+        />
+      )}
+    </Card>
+  );
+}
+
+function EpisodeRow({ e, playing, heard, resume, onPlay }: { e: Episode; playing: boolean; heard: boolean; resume: number; onPlay: () => void }) {
   const [open, setOpen] = useState(false);
-  const resume = savedPosition(e.name);
   return (
     <li className={cn("rounded-lg border border-line bg-elev-1 p-3", playing && "border-accent")}>
       <div className="flex items-center gap-3">
@@ -131,25 +257,42 @@ function EpisodeRow({ e, playing, heard, onPlay }: { e: Episode; playing: boolea
   );
 }
 
-function Player({ episode, onEnded, onNext }: { episode: Episode; onEnded: () => void; onNext: () => void }) {
+interface PlayerProps {
+  title: string;
+  subtitle: string;
+  src: string;
+  duration: number;
+  chapters: AudioChapter[];
+  startAt: number;
+  /** Called every 15 seconds of playback, on pause and when leaving: where to resume. */
+  onProgress?: (seconds: number) => void;
+  onTime?: (seconds: number) => void;
+  onEnded: () => void;
+  onNext?: () => void;
+}
+
+function Player({ title, subtitle, src, duration, chapters, startAt, onProgress, onTime, onEnded, onNext }: PlayerProps) {
   const ref = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [speed, setSpeed] = useState(loadSpeed);
-  const chapter = [...episode.chapters].reverse().find((c) => time >= c.start);
+  const lastSaved = useRef(startAt);
+  const chapter = [...chapters].reverse().find((c) => time >= c.start);
+  const progress = useRef(onProgress);
+  progress.current = onProgress;
 
   useEffect(() => {
     const a = ref.current;
     if (!a) return;
-    a.currentTime = savedPosition(episode.name);
+    a.currentTime = startAt;
     a.playbackRate = speed;
     void a.play().catch(() => setPlaying(false));
     // Lock screen, headphones and car controls.
     if ("mediaSession" in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: episode.title,
+        title,
         artist: "Ascend",
-        album: episode.module_title,
+        album: subtitle,
         artwork: [{ src: "/podcast-artwork.png", sizes: "1400x1400", type: "image/png" }],
       });
       const seek = (d: number) => {
@@ -159,13 +302,23 @@ function Player({ episode, onEnded, onNext }: { episode: Episode; onEnded: () =>
       navigator.mediaSession.setActionHandler("pause", () => a.pause());
       navigator.mediaSession.setActionHandler("seekbackward", () => seek(-15));
       navigator.mediaSession.setActionHandler("seekforward", () => seek(30));
-      navigator.mediaSession.setActionHandler("nexttrack", onNext);
+      navigator.mediaSession.setActionHandler("nexttrack", onNext ?? null);
       navigator.mediaSession.setActionHandler("seekto", (d) => {
         if (d.seekTime != null) a.currentTime = d.seekTime;
       });
     }
+    // Save the place when the page is hidden or the player goes away.
+    const save = () => {
+      if (a.currentTime > 0 && !a.ended) progress.current?.(a.currentTime);
+    };
+    const hidden = () => document.visibilityState === "hidden" && save();
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      document.removeEventListener("visibilitychange", hidden);
+      save();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [episode.name]);
+  }, [src]);
 
   useEffect(() => {
     if (ref.current) ref.current.playbackRate = speed;
@@ -185,14 +338,21 @@ function Player({ episode, onEnded, onNext }: { episode: Episode; onEnded: () =>
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-elev-1/95 p-3 backdrop-blur">
       <audio
         ref={ref}
-        src={`/api/audio/play/${encodeURIComponent(episode.name)}`}
+        src={src}
         preload="auto"
         onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onPause={(ev) => {
+          setPlaying(false);
+          if (!ev.currentTarget.ended) progress.current?.(ev.currentTarget.currentTime);
+        }}
         onTimeUpdate={(ev) => {
           const t = ev.currentTarget.currentTime;
           setTime(t);
-          if (Math.floor(t) % 5 === 0) savePosition(episode.name, t);
+          onTime?.(t);
+          if (Math.abs(t - lastSaved.current) >= 15) {
+            lastSaved.current = t;
+            progress.current?.(t);
+          }
           if ("mediaSession" in navigator && ev.currentTarget.duration) {
             try {
               navigator.mediaSession.setPositionState({ duration: ev.currentTarget.duration, position: t, playbackRate: ev.currentTarget.playbackRate });
@@ -207,17 +367,17 @@ function Player({ episode, onEnded, onNext }: { episode: Episode; onEnded: () =>
         <div className="flex items-center gap-2">
           <Headphones className="h-4 w-4 shrink-0 text-accent" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{episode.title}</div>
-            <div className="truncate text-xs text-muted">{chapter?.title ?? episode.module_title}</div>
+            <div className="truncate text-sm font-medium">{title}</div>
+            <div className="truncate text-xs text-muted">{chapter?.title ?? subtitle}</div>
           </div>
           <span className="text-xs tabular-nums text-muted">
-            {formatDuration(time)} / {formatDuration(episode.duration)}
+            {formatDuration(time)} / {formatDuration(duration)}
           </span>
         </div>
         <input
           type="range"
           min={0}
-          max={Math.round(episode.duration)}
+          max={Math.round(duration)}
           value={Math.round(time)}
           onChange={(e) => {
             if (ref.current) ref.current.currentTime = Number(e.target.value);
@@ -239,9 +399,11 @@ function Player({ episode, onEnded, onNext }: { episode: Episode; onEnded: () =>
           <button onClick={() => seek(30)} className="rounded-md p-2 text-muted hover:text-fg" aria-label="Forward 30 seconds">
             <FastForward className="h-5 w-5" />
           </button>
-          <button onClick={onNext} className="rounded-md p-2 text-muted hover:text-fg" aria-label="Next episode">
-            <SkipForward className="h-5 w-5" />
-          </button>
+          {onNext && (
+            <button onClick={onNext} className="rounded-md p-2 text-muted hover:text-fg" aria-label="Next episode">
+              <SkipForward className="h-5 w-5" />
+            </button>
+          )}
           <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} className="rounded-md border border-line bg-bg px-2 py-1 text-xs" aria-label="Speed">
             {SPEEDS.map((s) => (
               <option key={s} value={s}>
@@ -250,9 +412,9 @@ function Player({ episode, onEnded, onNext }: { episode: Episode; onEnded: () =>
             ))}
           </select>
         </div>
-        {episode.chapters.length > 1 && (
+        {chapters.length > 1 && (
           <div className="mt-2 flex gap-1 overflow-x-auto pb-1 text-xs">
-            {episode.chapters.map((c) => (
+            {chapters.map((c) => (
               <button
                 key={c.title}
                 onClick={() => {

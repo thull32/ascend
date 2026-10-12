@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use ascend_core::content::{Problem, ProblemSummary};
+use ascend_core::content::{Problem, ProblemSummary, SolutionTrace};
+use ascend_core::services::audio::ProblemWalkthrough;
 use ascend_core::services::submissions::{GradedSubmission, SubmissionInput};
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
@@ -21,6 +22,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/problems", get(list))
         .route("/problems/{slug}", get(detail))
         .route("/problems/{slug}/solution", get(solution))
+        .route("/problems/{slug}/walkthrough", get(walkthrough))
         .merge(grading)
         .route("/submissions/{target}", get(list_submissions))
 }
@@ -74,6 +76,29 @@ async fn solution(
 ) -> ApiResult<Json<SolutionResponse>> {
     let p = state.curriculum.problem(&slug).ok_or(ApiError(ascend_core::AppError::NotFound("problem")))?;
     Ok(Json(SolutionResponse { slug: p.slug.clone(), solution: p.solution.clone() }))
+}
+
+#[derive(Serialize)]
+struct WalkthroughResponse {
+    trace: Arc<SolutionTrace>,
+    /// The narration, once its audio is published.
+    narration: Option<ProblemWalkthrough>,
+}
+
+/// The solution's recorded run and its narration; gated like the solution.
+async fn walkthrough(
+    State(state): State<AppState>,
+    CurrentUser(_): CurrentUser,
+    Path(slug): Path<String>,
+) -> ApiResult<Json<WalkthroughResponse>> {
+    let trace =
+        state.curriculum.solution_trace(&slug).ok_or(ApiError(ascend_core::AppError::NotFound("walkthrough")))?;
+    // A walkthrough still works without its audio: the learner steps through it.
+    let narration = state.audio.problem_walkthrough(&slug).await.unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "audio manifest unavailable for a problem walkthrough");
+        None
+    });
+    Ok(Json(WalkthroughResponse { trace, narration }))
 }
 
 /// Runs the code in the grader and records the server's verdict.

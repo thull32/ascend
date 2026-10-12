@@ -81,6 +81,8 @@ impl QuizService {
         .insert(&self.db)
         .await?;
         super::activity::record(&self.db, user_id).await?;
+        let correct: Vec<bool> = questions.iter().map(|q| q.correct).collect();
+        super::review::record_quiz(&self.db, user_id, lesson_slug, &correct).await?;
         Ok(GradeResult { score, total, passed: total > 0 && score * 10 >= total * 7, questions })
     }
 

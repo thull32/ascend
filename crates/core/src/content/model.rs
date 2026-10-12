@@ -177,6 +177,30 @@ pub struct Pattern {
     pub problem_count: usize,
 }
 
+/// One run of a problem's solution on one example, line by line: what the
+/// problem page steps through while the walkthrough narrates it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolutionTrace {
+    pub problem: String,
+    pub code: String,
+    pub args: serde_json::Value,
+    /// The value returned, as JSON text.
+    pub result: String,
+    pub frames: Vec<TraceFrame>,
+}
+
+/// The line about to run, the call stack (outermost first) and the current
+/// function's variables, formatted for reading; `ret` on a function's last
+/// frame is what it returns.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TraceFrame {
+    pub line: u32,
+    pub stack: Vec<String>,
+    pub vars: serde_json::Map<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ret: Option<String>,
+}
+
 /// The whole curriculum, built once at startup.
 #[derive(Debug)]
 pub struct Curriculum {
@@ -184,6 +208,9 @@ pub struct Curriculum {
     pub lessons: HashMap<String, Arc<Lesson>>,
     pub problems: Vec<Arc<Problem>>,
     pub problems_by_slug: HashMap<String, Arc<Problem>>,
+    /// Recorded runs of problem solutions, by problem slug, for their
+    /// narrated walkthroughs (`scripts/trace_solution.py`).
+    pub solution_traces: HashMap<String, Arc<SolutionTrace>>,
     pub patterns: Vec<Pattern>,
     /// Content fingerprint (hash of all source bytes) — used for ETags.
     pub version: String,
@@ -196,6 +223,9 @@ impl Curriculum {
     }
     pub fn problem(&self, slug: &str) -> Option<Arc<Problem>> {
         self.problems_by_slug.get(slug).cloned()
+    }
+    pub fn solution_trace(&self, slug: &str) -> Option<Arc<SolutionTrace>> {
+        self.solution_traces.get(slug).cloned()
     }
     pub fn module(&self, slug: &str) -> Option<&Module> {
         self.tracks.iter().flat_map(|t| t.modules.iter()).find(|m| m.slug == slug)

@@ -1,5 +1,5 @@
 // Audio editions: lessons rewritten for listening (content/AUDIO_GUIDE.md).
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import { useFeatures } from "./queries";
@@ -40,10 +40,36 @@ export interface Walkthrough {
   cues: { frame: number; to?: number | null; start: number }[];
 }
 
+export interface Listen {
+  position: number;
+  heard: boolean;
+}
+
 export interface AudioListing {
   episodes: Episode[];
   walkthroughs?: Walkthrough[];
   has_feed: boolean;
+  /** Where the learner is in each episode they have started, on any device. */
+  listens: Record<string, Listen>;
+}
+
+/** One question of a daily review. */
+export interface ReviewItem {
+  question: string;
+  lesson: string;
+  lesson_title: string;
+  start: number;
+  box: number;
+  got: boolean | null;
+}
+
+export interface DailyReview {
+  day: string;
+  title: string;
+  duration: number;
+  bytes: number;
+  items: ReviewItem[];
+  created_at: string;
 }
 
 /** The published episodes, for signed-in learners on a deployment with audio. */
@@ -66,41 +92,46 @@ export function formatDuration(seconds: number): string {
   return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
-// Per-browser listening state: where each episode was left, and which were
-// finished. A convenience, so it lives in localStorage and may be lost.
+// Listening state lives on the server, so an episode started on a phone
+// resumes on a laptop and a finished lesson episode counts as progress.
+// Saving updates the cached listing at once; the request follows.
+export function saveListen(qc: QueryClient, name: string, position: number, finished = false) {
+  qc.setQueryData<AudioListing>(["audio"], (old) =>
+    old ? { ...old, listens: { ...old.listens, [name]: { position, heard: finished || !!old.listens[name]?.heard } } } : old,
+  );
+  return api.put(`/audio/listens/${encodeURIComponent(name)}`, { position, finished }).catch(() => {
+    /* best effort: the next save carries the position */
+  });
+}
+
+// Listening state used to be kept per browser. Upload what an old version
+// left in localStorage once, then forget it.
 const POS = "ascend.audio.position.";
 const HEARD = "ascend.audio.heard";
 
-export function savedPosition(name: string): number {
+export async function migrateLocalListens(listing: AudioListing) {
+  let local: [string, number, boolean][] = [];
   try {
-    return Number(localStorage.getItem(POS + name)) || 0;
+    const heard = new Set(JSON.parse(localStorage.getItem(HEARD) ?? "[]") as string[]);
+    const names = new Set(heard);
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(POS)) names.add(k.slice(POS.length));
+    }
+    local = [...names].map((n) => [n, Number(localStorage.getItem(POS + n)) || 0, heard.has(n)]);
   } catch {
-    return 0;
+    return;
   }
-}
-
-export function savePosition(name: string, seconds: number) {
-  try {
-    localStorage.setItem(POS + name, String(Math.floor(seconds)));
-  } catch {
-    /* storage unavailable */
+  const known = new Set([...listing.episodes.map((e) => e.name), ...(listing.walkthroughs ?? []).map((w) => w.name)]);
+  for (const [name, position, heard] of local) {
+    const server = listing.listens[name];
+    if (known.has(name) && (!server || (heard && !server.heard) || (!server.heard && position > server.position))) {
+      await api.put(`/audio/listens/${encodeURIComponent(name)}`, { position, finished: heard }).catch(() => {});
+    }
   }
-}
-
-export function heardSet(): Set<string> {
   try {
-    return new Set(JSON.parse(localStorage.getItem(HEARD) ?? "[]") as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-export function markHeard(name: string) {
-  try {
-    const s = heardSet();
-    s.add(name);
-    localStorage.setItem(HEARD, JSON.stringify([...s]));
-    localStorage.removeItem(POS + name);
+    for (const [name] of local) localStorage.removeItem(POS + name);
+    localStorage.removeItem(HEARD);
   } catch {
     /* storage unavailable */
   }

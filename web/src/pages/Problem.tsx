@@ -8,6 +8,7 @@ import { Badge, Button, Crumbs, Spinner } from "../components/ui";
 import { Markdown } from "../components/Markdown";
 import { CodeRunner } from "../components/Exercise";
 import { Comments } from "../components/Comments";
+import { SolutionWalkthrough } from "../components/SolutionWalkthrough";
 import { useCoachDock } from "../components/CoachDock";
 import { cn, difficultyColor, titleCase } from "../lib/utils";
 import NotFound from "./NotFound";
@@ -83,7 +84,10 @@ export default function ProblemPage() {
           ) : solution === null ? (
             <Spinner />
           ) : (
-            <Markdown source={solution} className="prose-ascend prose prose-sm max-w-none" />
+            <>
+              <SolutionWalkthrough slug={slug} />
+              <Markdown source={solution} className="prose-ascend prose prose-sm max-w-none" />
+            </>
           )}
           {user && (
             <Button variant="ghost" className="mt-4" onClick={() => dock.open({ kind: "problem", slug }, "Can you give me a hint for this problem without revealing the solution?")}>

@@ -121,7 +121,9 @@ def synth(tts, text, voice, speed):
     return samples.astype(np.float32)
 
 
-def encode_mp3(audio, path: Path, title, chapters):
+def encode_mp3(audio, path: Path, title, chapters, tags=True):
+    """96 kbit/s CBR mono. tags=False leaves out the ID3 header, so that
+    clips can be joined byte for byte into one stream (the daily review)."""
     enc = lameenc.Encoder()
     enc.set_bit_rate(96)
     enc.set_in_sample_rate(RATE)
@@ -129,6 +131,8 @@ def encode_mp3(audio, path: Path, title, chapters):
     enc.set_quality(2)
     pcm = (np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes()
     path.write_bytes(enc.encode(pcm) + enc.flush())
+    if not tags:
+        return
     from mutagen.id3 import CHAP, CTOC, ID3, TIT2, TALB, TPE1, CTOCFlags
 
     tags = ID3()
@@ -154,6 +158,18 @@ def spoken_hash(script: Path) -> str:
 
 
 WALK = ROOT / "content" / "walkthroughs"
+PROBLEM_WALK = ROOT / "content" / "problem-walkthroughs"
+SPOKEN = ROOT / "content" / "spoken-quizzes"
+TRACKS = ROOT / "content" / "tracks"
+# The fixed clips a daily review is assembled around: q-daily-<key>.
+DAILY = {
+    "intro": "Your Ascend daily review. A few questions, picked from what you have missed and what is due again. "
+             "Answer out loud before the answer comes.",
+    "outro": "That is today's review. Each question comes back after a longer gap than last time, or tomorrow if you "
+             "mark it missed on the Listen page.",
+    **{f"n{i}": f"Question {w}." for i, w in enumerate(
+        "one two three four five six seven eight nine ten eleven twelve".split(), 1)},
+}
 
 
 def walk_name(script: Path, lesson: str) -> str:
@@ -164,13 +180,20 @@ def walk_name(script: Path, lesson: str) -> str:
 
 
 def is_walkthrough(script: Path) -> bool:
-    return WALK in script.parents
+    return WALK in script.parents or PROBLEM_WALK in script.parents
+
+
+def problem_title(slug: str) -> str:
+    m = re.search(r'^title:\s*"?(.*?)"?\s*$', (ROOT / "content" / "problems" / f"{slug}.md").read_text(), re.M)
+    return m.group(1)
 
 
 def parse_walkthrough(script: Path):
     """Front matter and cues: (frame, text) for each `@N` block."""
     meta_text, body = re.match(r"---\n(.*?)\n---\n(.*)", script.read_text(), re.S).groups()
     meta = {k: v.strip('"') for k, v in re.findall(r"^(\w+):\s*(.*?)\s*$", meta_text, re.M)}
+    if "problem" in meta:
+        meta["viz"] = problem_title(meta["problem"])
     cues = []
     for frame, to, text in re.findall(r"^@(\d+)(?:-(\d+))?\n(.*?)(?=^@\d+(?:-\d+)?$|\Z)", body, re.S | re.M):
         cues.append((int(frame), int(to or frame), " ".join(text.split())))
@@ -203,8 +226,9 @@ def render_walkthrough(script: Path, voice, speed, out: Path, tts=None, lex=None
     encode_mp3(audio, mp3, f"Walkthrough: {meta['viz']}", [])
     sidecar = {
         "name": name,
-        "kind": "walkthrough",
-        "lesson": meta["lesson"],
+        "kind": "problem" if "problem" in meta else "walkthrough",
+        "lesson": meta.get("lesson"),
+        "problem": meta.get("problem"),
         "viz": meta["viz"],
         "title": meta["viz"],
         "source": meta.get("source"),
@@ -225,6 +249,8 @@ def render_walkthrough(script: Path, voice, speed, out: Path, tts=None, lex=None
 def episode_name(script: Path) -> str:
     if is_walkthrough(script):
         meta, _ = parse_walkthrough(script)
+        if "problem" in meta:
+            return f"walk-problem-{meta['problem']}"
         return meta.get("episode") or walk_name(script, meta["lesson"])
     meta, _ = parse(script)
     return meta.get("episode") or meta.get("lesson") or f"{meta['review']}-{script.stem}"
@@ -246,7 +272,77 @@ def audio_id(script: Path, voice: str) -> str:
     return hashlib.sha256(f"{spoken_hash(script)}|{lexicon_stamp(script)}|{voice}|{RENDER}".encode()).hexdigest()[:16]
 
 
+def lesson_title_of(lesson: Path) -> str:
+    return re.search(r'^title:\s*"?(.*?)"?\s*$', lesson.read_text(), re.M).group(1)
+
+
+def spoken_questions(script: Path):
+    """[(name, n, text)] for each `## N` of a spoken quiz: the clip's name and
+    what it says, opening with the lesson it is from."""
+    meta_text, body = re.match(r"---\n(.*?)\n---\n(.*)", script.read_text(), re.S).groups()
+    meta = dict(re.findall(r"^(\w+):\s*(.*?)\s*$", meta_text, re.M))
+    module = re.sub(r"^\d+-", "", script.parent.name)
+    title = lesson_title_of(TRACKS / script.relative_to(SPOKEN))
+    out = []
+    for n, text in re.findall(r"^## (\d+)\n(.*?)(?=^## |\Z)", body, re.S | re.M):
+        out.append((f"q-{module}-{meta['lesson']}-{n}", int(n), f"From the lesson: {title}.\n\n{text.strip()}\n"))
+    return meta, out
+
+
+def clip_id(text: str, voice: str) -> str:
+    words = json.loads((ROOT / "scripts" / "audio" / "lexicon.json").read_text())
+    words.pop("_comment", None)
+    used = sorted((k, v) for k, v in words.items() if re.search(rf"(?<![\w-]){re.escape(k)}(?![\w-])", text))
+    return hashlib.sha256(f"{text}|{json.dumps(used)}|{voice}|{RENDER}|clip".encode()).hexdigest()[:16]
+
+
+def clip_up_to_date(name: str, text: str, voice: str, out: Path) -> bool:
+    sidecar = out / f"{name}.json"
+    return sidecar.is_file() and json.loads(sidecar.read_text()).get("audio_id") == clip_id(text, voice)
+
+
+def render_clip(name: str, text: str, voice, speed, out: Path, tts, lex, extra: dict, tail=1.2):
+    """A short untagged clip: paragraphs, `[think]` silences, and a trailing gap."""
+    pieces = []
+    for block in re.split(r"\n\s*\n", text.strip()):
+        block = block.strip()
+        if block in ("[think]", "[pause]"):
+            pieces.append(silence(GAP[block[1:-1]]))
+        else:
+            pieces += [synth(tts, speakable(" ".join(block.split()), lex), voice, speed), silence(GAP["paragraph"])]
+    pieces.append(silence(tail))
+    audio = np.concatenate(pieces)
+    out.mkdir(parents=True, exist_ok=True)
+    mp3 = out / f"{name}.mp3"
+    encode_mp3(audio, mp3, name, [], tags=False)
+    sidecar = {"name": name, "kind": "clip", "text": text, "voice": voice, "render": RENDER,
+               "audio_id": clip_id(text, voice), "duration": round(len(audio) / RATE, 2),
+               "bytes": mp3.stat().st_size, **extra}
+    (out / f"{name}.json").write_text(json.dumps(sidecar, indent=2) + "\n")
+    print(f"{mp3.relative_to(ROOT)}: {len(audio) / RATE:.0f}s clip", file=sys.stderr)
+    return mp3
+
+
+def render_spoken(script: Path, voice, speed, out: Path, tts=None, lex=None):
+    meta, questions = spoken_questions(script)
+    for name, n, text in questions:
+        if not clip_up_to_date(name, text, voice, out):
+            tts, lex = tts or models(), lex or lexicon()
+            render_clip(name, text, voice, speed, out, tts, lex, {"lesson": meta["lesson"], "question": n})
+
+
+def render_daily(voice, speed, out: Path, tts=None, lex=None):
+    for key, text in DAILY.items():
+        name = f"q-daily-{key}"
+        if not clip_up_to_date(name, text, voice, out):
+            tts, lex = tts or models(), lex or lexicon()
+            render_clip(name, text, voice, speed, out, tts, lex, {"daily": key}, tail=0.6 if key.startswith("n") else 1.2)
+
+
 def up_to_date(script: Path, out: Path) -> bool:
+    if SPOKEN in script.parents:
+        _, questions = spoken_questions(script)
+        return all(clip_up_to_date(name, text, "af_heart", out) for name, _, text in questions)
     sidecar = out / f"{episode_name(script)}.json"
     if not sidecar.is_file():
         return False
@@ -255,6 +351,8 @@ def up_to_date(script: Path, out: Path) -> bool:
 
 
 def render(script: Path, voice, speed, out: Path, tts=None, lex=None):
+    if SPOKEN in script.parents:
+        return render_spoken(script, voice, speed, out, tts, lex)
     if is_walkthrough(script):
         return render_walkthrough(script, voice, speed, out, tts, lex)
     meta, chapters = parse(script)
@@ -334,6 +432,10 @@ def main():
         i, n = (int(x) for x in a.shard.split("/"))
         todo = [p for k, p in enumerate(sorted(a.script.resolve().rglob("*.md"))) if k % n == i and not up_to_date(p, a.out)]
         print(f"{len(todo)} to render", file=sys.stderr)
+        if a.script.resolve() == SPOKEN and i == 0:
+            render_daily(a.voice, a.speed, a.out)
+        if not todo:
+            return
         tts, lex = models(a.gpu), lexicon()
         for p in todo:
             render(p, a.voice, a.speed, a.out, tts, lex)

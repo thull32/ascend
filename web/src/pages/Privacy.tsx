@@ -6,7 +6,7 @@ import { useFeatures } from "../lib/queries";
 // statement here is checked against the code: when the code changes (a new
 // third party, a new table, a retention period), change this page with it.
 // Retention periods are enforced by crates/core/src/services/retention.rs.
-export const PRIVACY_UPDATED = "29 September 2026";
+export const PRIVACY_UPDATED = "11 October 2026";
 
 export default function Privacy() {
   const features = useFeatures();
@@ -30,7 +30,9 @@ export default function Privacy() {
         </li>
         <li>
           <strong>Your learning:</strong> lessons you complete, quiz answers, code you submit for grading and the result, activity days (for
-          your streak), comments you post, conversations with the AI coach, and mock interview transcripts and grades.
+          your streak), where you are in each audio episode and which you have finished, your daily review schedule (which quiz questions
+          are due when, and the ones you mark as missed), comments you post, conversations with the AI coach, and mock interview transcripts
+          and grades.
         </li>
         <li>
           <strong>Security records:</strong> sign-in sessions and recognised browsers (only as hashes of random tokens), single-use email
@@ -90,6 +92,7 @@ export default function Privacy() {
         <li>AI coach conversations: deleted a year after their last message.</li>
         <li>Mock interviews: deleted a year after they took place.</li>
         <li>AI usage counters: 90 days. Activity days: 400 days (streaks look back that far).</li>
+        <li>Daily review episodes and their marks: 30 days. The review schedule itself is kept with your progress.</li>
         <li>Sessions: signed out after 14 days unused, and after 30 days in any case. Recognised browsers: forgotten after a year unused.</li>
         <li>Email links: expire after one hour (password reset) or seven days (address confirmation), and are deleted when used or expired.</li>
         <li>Everything else, such as your profile, progress and quiz answers: until you delete your account.</li>

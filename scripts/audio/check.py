@@ -17,6 +17,9 @@ ROOT = Path(__file__).resolve().parents[2]
 AUDIO = ROOT / "content" / "audio"
 WALK = ROOT / "content" / "walkthroughs"
 TRACKS = ROOT / "content" / "tracks"
+PROBLEM_WALK = ROOT / "content" / "problem-walkthroughs"
+PROBLEMS = ROOT / "content" / "problems"
+SPOKEN = ROOT / "content" / "spoken-quizzes"
 FORBIDDEN = re.compile(r"[`|$*_]|https?:|\[(?!pause\]|think\])")
 WORDS = {"great": (1300, 2200), "partial": (1300, 2200), "screen": (450, 800), "review": (1300, 2400)}
 
@@ -147,7 +150,13 @@ def check_walkthrough(script: Path, fix: bool) -> list[str]:
             script.write_text(re.sub(r"^source: \S+", f"source: {current}", text, count=1, flags=re.M))
         else:
             problems.append(f"stale: the visualisation changed (source {meta.get('source')}, now {current})")
-    frames = int(meta.get("frames") or 0)
+    return problems + check_cues(body, int(meta.get("frames") or 0))
+
+
+def check_cues(body: str, frames: int) -> list[str]:
+    """`@N` / `@N-M` cues: from @0, rising without overlapping, below `frames`;
+    and no markup or symbols in what is spoken."""
+    problems = []
     spans = [(int(a), int(b or a)) for a, b in re.findall(r"^@(\d+)(?:-(\d+))?$", body, re.M)]
     flat = [f for a, b in spans for f in (a, b)]
     if not spans or spans[0][0] != 0 or any(b < a for a, b in spans) or flat != sorted(flat) or len(set(a for a, _ in spans)) != len(spans) or flat[-1] >= frames:
@@ -157,6 +166,110 @@ def check_walkthrough(script: Path, fix: bool) -> list[str]:
             continue
         if line.startswith(("#", "-", ">", "  ")) or FORBIDDEN.search(line):
             problems.append(f"body line {n}: markup or symbols: {line[:70]!r}")
+    return problems
+
+
+def check_problem_walkthrough(script: Path, fix: bool) -> list[str]:
+    """A narrated walkthrough of a problem's solution, stepping through the
+    trace that scripts/trace_solution.py recorded (<slug>.trace.json): each
+    frame is one executed line. `source` is the hash of the traced code and
+    example, so changing either flags the narration for review."""
+    import json
+
+    text = script.read_text()
+    try:
+        meta, body = parse(text)
+    except ValueError as e:
+        return [str(e)]
+    slug = meta.get("problem", "")
+    if script.stem != slug:
+        return [f"problem: {slug!r} must match the file name"]
+    problem = PROBLEMS / f"{slug}.md"
+    if not problem.is_file():
+        return [f"no problem at {problem.relative_to(ROOT)}"]
+    trace_path = script.with_suffix(".trace.json")
+    if not trace_path.is_file():
+        return [f"no trace: run scripts/safe_py.sh scripts/trace_solution.py {script.relative_to(ROOT)}"]
+    trace = json.loads(trace_path.read_text())
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from trace_solution import default_block, solution_blocks, source_hash
+
+    problems = []
+    blocks = solution_blocks(problem)
+    n = int(meta.get("block") or default_block(problem))
+    if not 1 <= n <= len(blocks):
+        return [f"block: {n} but the solution has {len(blocks)} Python blocks"]
+    # Read raw: parse() would cut a JSON string at a "#".
+    raw_args = re.search(r"^args:\s*(.*?)\s*$", text.split("\n---\n", 1)[0], re.M)
+    args = json.loads(raw_args.group(1) if raw_args else "null")
+    current = source_hash(blocks[n - 1], args)
+    if trace.get("source") != current or trace.get("block") != n:
+        problems.append("the trace is stale (the solution code or args changed): run scripts/trace_solution.py, then review the narration")
+    elif meta.get("source") != current:
+        if fix:
+            script.write_text(re.sub(r"^source: \S+", f"source: {current}", text, count=1, flags=re.M))
+        else:
+            problems.append(f"stale: the traced code or example changed (source {meta.get('source')}, now {current})")
+    frames = int(meta.get("frames") or 0)
+    if frames != len(trace["frames"]):
+        problems.append(f"frames: {frames} but the trace has {len(trace['frames'])}")
+    return problems + check_cues(body, frames)
+
+
+def quiz_questions(lesson: Path) -> tuple[str, list[int]]:
+    """The lesson's quiz block (exact text) and each question's answer index."""
+    m = re.search(r"^```quiz\n.*?^```", lesson.read_text(), re.S | re.M)
+    if not m:
+        return "", []
+    return m.group(0), [int(a) for a in re.findall(r"^  answer: (\d+)", m.group(0), re.M)]
+
+
+def check_spoken_quiz(script: Path, fix: bool) -> list[str]:
+    """Spoken versions of one lesson's quiz questions, for the daily review.
+    `## N` is the lesson's question N (1-based); each becomes a clip."""
+    text = script.read_text()
+    try:
+        meta, body = parse(text)
+    except ValueError as e:
+        return [str(e)]
+    lesson = TRACKS / script.relative_to(SPOKEN)
+    if not lesson.is_file():
+        return [f"no lesson at {lesson.relative_to(ROOT)}"]
+    problems = []
+    slug = re.search(r"^slug:\s*(\S+)", lesson.read_text(), re.M)
+    if not slug or slug.group(1) != meta.get("lesson"):
+        problems.append(f"lesson: {meta.get('lesson')!r} does not match the lesson's slug")
+    block, answers = quiz_questions(lesson)
+    current = hashlib.sha256(block.encode()).hexdigest()[:16]
+    if meta.get("source") != current:
+        if fix:
+            script.write_text(re.sub(r"^source: \S+", f"source: {current}", text, count=1, flags=re.M))
+        else:
+            problems.append(f"stale: the lesson's quiz changed (source {meta.get('source')}, now {current})")
+    sections = re.findall(r"^## ([^\n]*)\n(.*?)(?=^## |\Z)", body, re.S | re.M)
+    if not sections:
+        problems.append("no questions: one `## N` section per question")
+    seen = []
+    for head, part in sections:
+        if not head.isdigit() or not 1 <= int(head) <= len(answers):
+            problems.append(f"## {head}: must be a question number from 1 to {len(answers)}")
+            continue
+        n = int(head)
+        seen.append(n)
+        letter = "ABCDEFGH"[answers[n - 1]]
+        said = re.search(r"^The answer is ([A-H])\b", part, re.M)
+        if not said or said.group(1) != letter:
+            problems.append(f"## {n}: must say \"The answer is {letter}\" (the quiz's answer)")
+        if part.count("[think]") != 1:
+            problems.append(f"## {n}: needs exactly one [think] before the answer")
+        words = len(re.sub(r"\[(think|pause)\]", "", part).split())
+        if not 40 <= words <= 260:
+            problems.append(f"## {n}: {words} words; keep a question between 40 and 260")
+        for line in part.splitlines():
+            if line.strip() and (line.startswith(("#", "-", ">", "  ")) or FORBIDDEN.search(line)):
+                problems.append(f"## {n}: markup or symbols: {line[:70]!r}")
+    if seen != sorted(set(seen)):
+        problems.append(f"questions {seen} must be in order, each once")
     return problems
 
 
@@ -188,12 +301,17 @@ def main() -> int:
         for p in check(script, fix):
             failed += 1
             print(f"{script.relative_to(ROOT)}: {p}")
-    walks = sorted(p for p in WALK.rglob("*.md") if not paths or any(p == r or r in p.parents for r in paths))
-    for walk in walks:
-        for p in check_walkthrough(walk, fix):
-            failed += 1
-            print(f"{walk.relative_to(ROOT)}: {p}")
-    print(f"{len(scripts)} scripts, {len(walks)} walkthroughs, {failed} problems")
+    def under(root):
+        return sorted(p for p in root.rglob("*.md") if not paths or any(p == r or r in p.parents for r in paths))
+
+    walks, problem_walks, spoken = under(WALK), under(PROBLEM_WALK), under(SPOKEN)
+    for files, checker in ((walks, check_walkthrough), (problem_walks, check_problem_walkthrough), (spoken, check_spoken_quiz)):
+        for f in files:
+            for p in checker(f, fix):
+                failed += 1
+                print(f"{f.relative_to(ROOT)}: {p}")
+    print(f"{len(scripts)} scripts, {len(walks)} walkthroughs, {len(problem_walks)} problem walkthroughs, "
+          f"{len(spoken)} spoken quizzes, {failed} problems")
     return 1 if failed else 0
 
 

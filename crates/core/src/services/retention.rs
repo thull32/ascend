@@ -8,6 +8,7 @@
 //! | Mock interviews | 365 days after they started |
 //! | AI usage counters | 90 days |
 //! | Activity days | 400 days (streaks look back that far) |
+//! | Daily review episodes | 30 days (`ReviewService::expire`, run from the same hourly loop) |
 //! | Recognised browsers | 365 days after last use |
 //!
 //! Sessions, email links and rate-limit keys have their own sweeps.

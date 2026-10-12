@@ -25,6 +25,7 @@ pub struct AppState {
     pub submissions: SubmissionService,
     pub comments: CommentService,
     pub audio: ascend_core::services::audio::AudioService,
+    pub review: ascend_core::services::ReviewService,
     pub roadmap: Arc<RoadmapService>,
     pub interviews: InterviewService,
     pub coach: CoachService,
@@ -190,6 +191,7 @@ impl AppState {
             }
             _ => ascend_core::email::Mailer::Log,
         };
+        let audio = ascend_core::services::audio::AudioService::new(db.clone(), config.audio.as_ref())?;
         Ok(Self {
             auth: match &config.pwned_passwords_url {
                 Some(url) => AuthService::new(db.clone(), config.session_ttl, config.session_idle)
@@ -201,7 +203,8 @@ impl AppState {
             quiz: QuizService::new(db.clone(), curriculum.clone()),
             submissions: SubmissionService::new(db.clone(), curriculum.clone(), grader),
             comments: CommentService::new(db.clone(), curriculum.clone()),
-            audio: ascend_core::services::audio::AudioService::new(db.clone(), config.audio.as_ref())?,
+            audio: audio.clone(),
+            review: ascend_core::services::ReviewService::new(db.clone(), audio, curriculum.clone()),
             roadmap: Arc::new(RoadmapService::new(curriculum.clone())),
             interviews: InterviewService::new(db.clone(), curriculum.clone()),
             coach,
