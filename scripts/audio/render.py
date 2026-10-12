@@ -74,10 +74,29 @@ def lexicon():
     return [(re.compile(rf"(?<![\w-]){re.escape(k)}(?![\w-])"), v) for k, v in sorted(words.items(), key=lambda kv: -len(kv[0]))]
 
 
+# The voice reads a capital A before another word as the article ("from uh
+# to B"). Mid-sentence it is always a name (route A, replica A, A star); at a
+# sentence start only before words the article cannot precede.
+LETTER_A = re.compile(
+    r"(?<=[a-z0-9,;)] )A(?= [\w(])"
+    r"|(?:^|(?<=[.?!] ))A(?= (?:is|was|has|had|to|and|or|then|holds|points|returns|sends|writes|reads|gets|asks"
+    r"|wakes|misses|runs|stops|wins|calls|commits|acquires|releases|cannot|can|will|must|does|did|now|still)\b)",
+    re.M,
+)
+
+
 def speakable(text, lex):
     for pattern, spoken in lex:
         text = pattern.sub(spoken, text)
-    return text
+    return LETTER_A.sub("Eigh", text)
+
+
+def used_entries(text: str) -> list:
+    """The pronunciation entries (and rules) that text depends on."""
+    words = json.loads((ROOT / "scripts" / "audio" / "lexicon.json").read_text())
+    words.pop("_comment", None)
+    used = sorted((k, v) for k, v in words.items() if re.search(rf"(?<![\w-]){re.escape(k)}(?![\w-])", text))
+    return used + [("A", "Eigh")] * bool(LETTER_A.search(text))
 
 
 def parse(path: Path):
@@ -259,11 +278,7 @@ def episode_name(script: Path) -> str:
 def lexicon_stamp(script: Path) -> str:
     """Hash of the pronunciation entries this script uses, so that changing
     one re-renders exactly the episodes that say the word."""
-    text = script.read_text()
-    words = json.loads((ROOT / "scripts" / "audio" / "lexicon.json").read_text())
-    words.pop("_comment", None)
-    used = sorted((k, v) for k, v in words.items() if re.search(rf"(?<![\w-]){re.escape(k)}(?![\w-])", text))
-    return hashlib.sha256(json.dumps(used).encode()).hexdigest()[:16]
+    return hashlib.sha256(json.dumps(used_entries(script.read_text())).encode()).hexdigest()[:16]
 
 
 def audio_id(script: Path, voice: str) -> str:
@@ -290,10 +305,7 @@ def spoken_questions(script: Path):
 
 
 def clip_id(text: str, voice: str) -> str:
-    words = json.loads((ROOT / "scripts" / "audio" / "lexicon.json").read_text())
-    words.pop("_comment", None)
-    used = sorted((k, v) for k, v in words.items() if re.search(rf"(?<![\w-]){re.escape(k)}(?![\w-])", text))
-    return hashlib.sha256(f"{text}|{json.dumps(used)}|{voice}|{RENDER}|clip".encode()).hexdigest()[:16]
+    return hashlib.sha256(f"{text}|{json.dumps(used_entries(text))}|{voice}|{RENDER}|clip".encode()).hexdigest()[:16]
 
 
 def clip_up_to_date(name: str, text: str, voice: str, out: Path) -> bool:

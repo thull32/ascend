@@ -48,7 +48,7 @@ A, routing one vehicle from a depot to one customer on a road map. B, computing 
 
 The answer is B: delivery times from one depot to all 5,000 customers.
 
-A star needs a single goal to aim its heuristic at. One-to-all is exactly Dijkstra's shape, and running A star 5,000 times would repeat most of the work. The other three are single-goal searches with good heuristics available.
+A-star needs a single goal to aim its heuristic at. One-to-all is exactly Dijkstra's shape, and running A star 5,000 times would repeat most of the work. The other three are single-goal searches with good heuristics available.
 
 ## 5
 
@@ -64,7 +64,7 @@ Among equal totals, a larger cost so far means a smaller remaining estimate, so 
 
 ## 6
 
-The graph has edges S to A costing 1, A to B costing 1, S to B costing 3, and B to G costing 2. The heuristic is 3 at A and 0 elsewhere. A star with a closed set returns 5, although the true distance is 4. Which statement explains it?
+The graph has edges S to A costing 1, A to B costing 1, S to B costing 3, and B to G costing 2. The heuristic is 3 at A and 0 elsewhere. A-star with a closed set returns 5, although the true distance is 4. Which statement explains it?
 
 A, the heuristic overestimates at A, because 3 exceeds the direct edge from S to A. B, the heuristic is admissible but not consistent: the edge from A to B has a reduced cost of minus 2, so B closes with a suboptimal cost. C, ties were broken towards the smaller cost so far, so A was expanded after G. D, the closed set is checked at push time instead of pop time, which discards improvements.
 
