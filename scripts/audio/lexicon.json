@@ -1020,5 +1020,14 @@
   "acyclic": "a-cyclic",
   "Acyclic": "A-cyclic",
   "denylist": "deny-list",
-  "denylists": "deny-lists"
+  "denylists": "deny-lists",
+  "palindrome": "pal-in-drome",
+  "Palindrome": "Pal-in-drome",
+  "palindromes": "pal-in-dromes",
+  "Palindromes": "Pal-in-dromes",
+  "palindromic": "pal-in-dromic",
+  "Palindromic": "Pal-in-dromic",
+  "monotonic": "mono-tonic",
+  "Monotonic": "Mono-tonic",
+  "monotonically": "mono-tonically"
 }
