@@ -1,0 +1,207 @@
+{
+ "problem": "find-pivot-index",
+ "block": 1,
+ "version": 2,
+ "source": "3a38b19c06b22425",
+ "code": "def pivot_index(nums: list[int]) -> int:\n    total = sum(nums)\n    left = 0\n    for i, x in enumerate(nums):\n        if left == total - left - x:\n            return i\n        left += x\n    return -1\n",
+ "args": [
+  [
+   1,
+   7,
+   3,
+   6,
+   5,
+   6
+  ]
+ ],
+ "result": "3",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "0",
+    "i": "0",
+    "x": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "0",
+    "i": "0",
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "1",
+    "i": "0",
+    "x": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "1",
+    "i": "1",
+    "x": "7"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "1",
+    "i": "1",
+    "x": "7"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "8",
+    "i": "1",
+    "x": "7"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "8",
+    "i": "2",
+    "x": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "8",
+    "i": "2",
+    "x": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "11",
+    "i": "2",
+    "x": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "11",
+    "i": "3",
+    "x": "6"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "11",
+    "i": "3",
+    "x": "6"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "pivot_index"
+   ],
+   "vars": {
+    "nums": "[1, 7, 3, 6, 5, 6]",
+    "total": "28",
+    "left": "11",
+    "i": "3",
+    "x": "6"
+   },
+   "ret": "3"
+  }
+ ]
+}

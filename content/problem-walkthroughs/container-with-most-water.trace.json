@@ -1,0 +1,601 @@
+{
+ "problem": "container-with-most-water",
+ "block": 1,
+ "version": 2,
+ "source": "bf8146f936855ece",
+ "code": "def max_area(heights: list[int]) -> int:\n    lo, hi = 0, len(heights) - 1\n    best = 0\n    while lo < hi:\n        h = min(heights[lo], heights[hi])\n        best = max(best, (hi - lo) * h)\n        if heights[lo] <= heights[hi]:\n            lo += 1\n        else:\n            hi -= 1\n    return best\n",
+ "args": [
+  [
+   1,
+   8,
+   6,
+   2,
+   5,
+   4,
+   8,
+   3,
+   7
+  ]
+ ],
+ "result": "49",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "0",
+    "hi": "8"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "0",
+    "hi": "8",
+    "best": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "0",
+    "hi": "8",
+    "best": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "0",
+    "hi": "8",
+    "best": "0",
+    "h": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "0",
+    "hi": "8",
+    "best": "8",
+    "h": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "0",
+    "hi": "8",
+    "best": "8",
+    "h": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "8",
+    "best": "8",
+    "h": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "8",
+    "best": "8",
+    "h": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "8",
+    "best": "8",
+    "h": "7"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "8",
+    "best": "49",
+    "h": "7"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "8",
+    "best": "49",
+    "h": "7"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "7",
+    "best": "49",
+    "h": "7"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "7",
+    "best": "49",
+    "h": "7"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "7",
+    "best": "49",
+    "h": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "7",
+    "best": "49",
+    "h": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "7",
+    "best": "49",
+    "h": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "6",
+    "best": "49",
+    "h": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "6",
+    "best": "49",
+    "h": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "6",
+    "best": "49",
+    "h": "8"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "6",
+    "best": "49",
+    "h": "8"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "1",
+    "hi": "6",
+    "best": "49",
+    "h": "8"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "2",
+    "hi": "6",
+    "best": "49",
+    "h": "8"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "2",
+    "hi": "6",
+    "best": "49",
+    "h": "8"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "2",
+    "hi": "6",
+    "best": "49",
+    "h": "6"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "2",
+    "hi": "6",
+    "best": "49",
+    "h": "6"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "2",
+    "hi": "6",
+    "best": "49",
+    "h": "6"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "3",
+    "hi": "6",
+    "best": "49",
+    "h": "6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "3",
+    "hi": "6",
+    "best": "49",
+    "h": "6"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "3",
+    "hi": "6",
+    "best": "49",
+    "h": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "3",
+    "hi": "6",
+    "best": "49",
+    "h": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "3",
+    "hi": "6",
+    "best": "49",
+    "h": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "4",
+    "hi": "6",
+    "best": "49",
+    "h": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "4",
+    "hi": "6",
+    "best": "49",
+    "h": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "4",
+    "hi": "6",
+    "best": "49",
+    "h": "5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "4",
+    "hi": "6",
+    "best": "49",
+    "h": "5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "4",
+    "hi": "6",
+    "best": "49",
+    "h": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "5",
+    "hi": "6",
+    "best": "49",
+    "h": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "5",
+    "hi": "6",
+    "best": "49",
+    "h": "5"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "5",
+    "hi": "6",
+    "best": "49",
+    "h": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "5",
+    "hi": "6",
+    "best": "49",
+    "h": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "5",
+    "hi": "6",
+    "best": "49",
+    "h": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "6",
+    "hi": "6",
+    "best": "49",
+    "h": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "6",
+    "hi": "6",
+    "best": "49",
+    "h": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_area"
+   ],
+   "vars": {
+    "heights": "[1, 8, 6, 2, 5, 4, 8, 3, 7]",
+    "lo": "6",
+    "hi": "6",
+    "best": "49",
+    "h": "4"
+   },
+   "ret": "49"
+  }
+ ]
+}

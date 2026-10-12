@@ -1,0 +1,572 @@
+{
+ "problem": "right-side-view",
+ "block": 1,
+ "version": 2,
+ "source": "51d68393615aa64c",
+ "code": "from collections import deque\n\ndef right_side_view(root: TreeNode | None) -> list[int]:\n    if root is None:\n        return []\n    view: list[int] = []\n    queue = deque([root])\n    while queue:\n        size = len(queue)\n        for i in range(size):\n            node = queue.popleft()\n            if i == size - 1:\n                view.append(node.val)\n            if node.left is not None:\n                queue.append(node.left)\n            if node.right is not None:\n                queue.append(node.right)\n    return view\n",
+ "args": [
+  {
+   "$tree": [
+    1,
+    2,
+    3,
+    4
+   ]
+  }
+ ],
+ "result": "[1, 3, 4]",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[]",
+    "queue": "deque([TreeNode(1)])"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[]",
+    "queue": "deque([TreeNode(1)])"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[]",
+    "queue": "deque([TreeNode(1)])",
+    "size": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[]",
+    "queue": "deque([TreeNode(1)])",
+    "size": "1",
+    "i": "0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(2)])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(2)])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "size": "2",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "size": "2",
+    "i": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(3)])",
+    "size": "2",
+    "i": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(3)])",
+    "size": "2",
+    "i": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(3)])",
+    "size": "2",
+    "i": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(3), TreeNode(4)])",
+    "size": "2",
+    "i": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(3), TreeNode(4)])",
+    "size": "2",
+    "i": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(3), TreeNode(4)])",
+    "size": "2",
+    "i": "1",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(4)])",
+    "size": "2",
+    "i": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1]",
+    "queue": "deque([TreeNode(4)])",
+    "size": "2",
+    "i": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3]",
+    "queue": "deque([TreeNode(4)])",
+    "size": "2",
+    "i": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3]",
+    "queue": "deque([TreeNode(4)])",
+    "size": "2",
+    "i": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3]",
+    "queue": "deque([TreeNode(4)])",
+    "size": "2",
+    "i": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3]",
+    "queue": "deque([TreeNode(4)])",
+    "size": "2",
+    "i": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3]",
+    "queue": "deque([TreeNode(4)])",
+    "size": "2",
+    "i": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3]",
+    "queue": "deque([TreeNode(4)])",
+    "size": "1",
+    "i": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3]",
+    "queue": "deque([TreeNode(4)])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3, 4]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3, 4]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3, 4]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3, 4]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3, 4]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "right_side_view"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "view": "[1, 3, 4]",
+    "queue": "deque([])",
+    "size": "1",
+    "i": "0",
+    "node": "TreeNode(4)"
+   },
+   "ret": "[1, 3, 4]"
+  }
+ ]
+}

@@ -1,0 +1,1272 @@
+{
+ "problem": "walls-and-gates",
+ "block": 1,
+ "version": 2,
+ "source": "e04c8d8788a46226",
+ "code": "from collections import deque\n\ndef walls_and_gates(rooms: list[list[int]]) -> list[list[int]]:\n    INF = 2147483647\n    if not rooms or not rooms[0]:\n        return rooms\n    rows, cols = len(rooms), len(rooms[0])\n    queue = deque((r, c) for r in range(rows) for c in range(cols) if rooms[r][c] == 0)\n    while queue:\n        r, c = queue.popleft()\n        for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):\n            if 0 <= nr < rows and 0 <= nc < cols and rooms[nr][nc] == INF:\n                rooms[nr][nc] = rooms[r][c] + 1\n                queue.append((nr, nc))\n    return rooms\n",
+ "args": [
+  [
+   [
+    0,
+    2147483647,
+    2147483647,
+    2147483647,
+    0
+   ]
+  ]
+ ],
+ "result": "[[0, 1, 2, 1, 0]]",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   },
+   "ret": "(0, 0)"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "2",
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "3",
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "4",
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   },
+   "ret": "(0, 4)"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "4",
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "4",
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "walls_and_gates",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "4",
+    "cols": "5",
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 0), (0, 4)])",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 0), (0, 4)])",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4)])",
+    "r": "0",
+    "c": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4)])",
+    "r": "0",
+    "c": "0",
+    "nr": "1",
+    "nc": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4)])",
+    "r": "0",
+    "c": "0",
+    "nr": "1",
+    "nc": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4)])",
+    "r": "0",
+    "c": "0",
+    "nr": "-1",
+    "nc": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4)])",
+    "r": "0",
+    "c": "0",
+    "nr": "-1",
+    "nc": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4)])",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 2147483647, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4)])",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4)])",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4), (0, 1)])",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4), (0, 1)])",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4), (0, 1)])",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4), (0, 1)])",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 4), (0, 1)])",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "0",
+    "nc": "-1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "1",
+    "nc": "4",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "1",
+    "nc": "4",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "-1",
+    "nc": "4",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "-1",
+    "nc": "4",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "0",
+    "nc": "5",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "0",
+    "nc": "5",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "0",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 2147483647, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "0",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1)])",
+    "r": "0",
+    "c": "4",
+    "nr": "0",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1), (0, 3)])",
+    "r": "0",
+    "c": "4",
+    "nr": "0",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1), (0, 3)])",
+    "r": "0",
+    "c": "4",
+    "nr": "0",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 1), (0, 3)])",
+    "r": "0",
+    "c": "4",
+    "nr": "0",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3)])",
+    "r": "0",
+    "c": "1",
+    "nr": "0",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3)])",
+    "r": "0",
+    "c": "1",
+    "nr": "1",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3)])",
+    "r": "0",
+    "c": "1",
+    "nr": "1",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3)])",
+    "r": "0",
+    "c": "1",
+    "nr": "-1",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3)])",
+    "r": "0",
+    "c": "1",
+    "nr": "-1",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3)])",
+    "r": "0",
+    "c": "1",
+    "nr": "0",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2147483647, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3)])",
+    "r": "0",
+    "c": "1",
+    "nr": "0",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3)])",
+    "r": "0",
+    "c": "1",
+    "nr": "0",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3), (0, 2)])",
+    "r": "0",
+    "c": "1",
+    "nr": "0",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3), (0, 2)])",
+    "r": "0",
+    "c": "1",
+    "nr": "0",
+    "nc": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3), (0, 2)])",
+    "r": "0",
+    "c": "1",
+    "nr": "0",
+    "nc": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3), (0, 2)])",
+    "r": "0",
+    "c": "1",
+    "nr": "0",
+    "nc": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 3), (0, 2)])",
+    "r": "0",
+    "c": "1",
+    "nr": "0",
+    "nc": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "0",
+    "nc": "0",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "1",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "1",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "-1",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "-1",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "0",
+    "nc": "4",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "0",
+    "nc": "4",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "0",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "0",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "0",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([(0, 2)])",
+    "r": "0",
+    "c": "3",
+    "nr": "0",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "1",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "1",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "-1",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "-1",
+    "nc": "2",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "3",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "1",
+    "cols": "5"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "walls_and_gates"
+   ],
+   "vars": {
+    "rooms": "[[0, 1, 2, 1, 0]]",
+    "INF": "2147483647",
+    "rows": "1",
+    "queue": "deque([])",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "1",
+    "cols": "5"
+   },
+   "ret": "[[0, 1, 2, 1, 0]]"
+  }
+ ]
+}

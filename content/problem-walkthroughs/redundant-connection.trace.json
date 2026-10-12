@@ -1,0 +1,1040 @@
+{
+ "problem": "redundant-connection",
+ "block": 1,
+ "version": 2,
+ "source": "b6d4232b6fa67b10",
+ "code": "def find_redundant_connection(edges: list[list[int]]) -> list[int]:\n    n = len(edges)\n    parent = list(range(n + 1))\n    size = [1] * (n + 1)\n\n    def find(x: int) -> int:\n        while parent[x] != x:\n            parent[x] = parent[parent[x]]   # path halving\n            x = parent[x]\n        return x\n\n    for a, b in edges:\n        ra, rb = find(a), find(b)\n        if ra == rb:\n            return [a, b]\n        if size[ra] < size[rb]:\n            ra, rb = rb, ra\n        parent[rb] = ra\n        size[ra] += size[rb]\n    return []  # unreachable for valid input\n",
+ "args": [
+  [
+   [
+    3,
+    4
+   ],
+   [
+    1,
+    2
+   ],
+   [
+    2,
+    4
+   ],
+   [
+    3,
+    5
+   ],
+   [
+    2,
+    5
+   ]
+  ]
+ ],
+ "result": "[2, 5]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 1, 1, 1]",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 1, 1, 1]",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 1, 1, 1]",
+    "a": "3",
+    "b": "4",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "3",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "3",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "3",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "4",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "4",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "4",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   },
+   "ret": "4"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 1, 1, 1]",
+    "a": "3",
+    "b": "4",
+    "ra": "3",
+    "rb": "4",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 1, 1, 1]",
+    "a": "3",
+    "b": "4",
+    "ra": "3",
+    "rb": "4",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 1, 1, 1]",
+    "a": "3",
+    "b": "4",
+    "ra": "3",
+    "rb": "4",
+    "parent": "[0, 1, 2, 3, 4, 5]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 1, 1, 1]",
+    "a": "3",
+    "b": "4",
+    "ra": "3",
+    "rb": "4",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 2, 1, 1]",
+    "a": "3",
+    "b": "4",
+    "ra": "3",
+    "rb": "4",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 2, 1, 1]",
+    "a": "1",
+    "b": "2",
+    "ra": "3",
+    "rb": "4",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 2, 1, 1]",
+    "a": "1",
+    "b": "2",
+    "ra": "1",
+    "rb": "2",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 2, 1, 1]",
+    "a": "1",
+    "b": "2",
+    "ra": "1",
+    "rb": "2",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 2, 1, 1]",
+    "a": "1",
+    "b": "2",
+    "ra": "1",
+    "rb": "2",
+    "parent": "[0, 1, 2, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 1, 1, 2, 1, 1]",
+    "a": "1",
+    "b": "2",
+    "ra": "1",
+    "rb": "2",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 2, 1, 2, 1, 1]",
+    "a": "1",
+    "b": "2",
+    "ra": "1",
+    "rb": "2",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 2, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "4",
+    "ra": "1",
+    "rb": "2",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "4",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "4",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "4",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "3",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "3",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "3",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 2, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "4",
+    "ra": "1",
+    "rb": "3",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 2, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "4",
+    "ra": "1",
+    "rb": "3",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 2, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "4",
+    "ra": "1",
+    "rb": "3",
+    "parent": "[0, 1, 1, 3, 3, 5]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 2, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "4",
+    "ra": "1",
+    "rb": "3",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 4, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "4",
+    "ra": "1",
+    "rb": "3",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 4, 1, 2, 1, 1]",
+    "a": "3",
+    "b": "5",
+    "ra": "1",
+    "rb": "3",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "3",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "3",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "3",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "5",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "5",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "5",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   },
+   "ret": "5"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 4, 1, 2, 1, 1]",
+    "a": "3",
+    "b": "5",
+    "ra": "1",
+    "rb": "5",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 4, 1, 2, 1, 1]",
+    "a": "3",
+    "b": "5",
+    "ra": "1",
+    "rb": "5",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 4, 1, 2, 1, 1]",
+    "a": "3",
+    "b": "5",
+    "ra": "1",
+    "rb": "5",
+    "parent": "[0, 1, 1, 1, 3, 5]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 4, 1, 2, 1, 1]",
+    "a": "3",
+    "b": "5",
+    "ra": "1",
+    "rb": "5",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 5, 1, 2, 1, 1]",
+    "a": "3",
+    "b": "5",
+    "ra": "1",
+    "rb": "5",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 5, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "5",
+    "ra": "1",
+    "rb": "5",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "5",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "5",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "5",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_redundant_connection",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 5, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "5",
+    "ra": "1",
+    "rb": "1",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 5, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "5",
+    "ra": "1",
+    "rb": "1",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_redundant_connection"
+   ],
+   "vars": {
+    "edges": "[[3, 4], [1, 2], [2, 4], [3, 5], [2, 5]]",
+    "n": "5",
+    "size": "[1, 5, 1, 2, 1, 1]",
+    "a": "2",
+    "b": "5",
+    "ra": "1",
+    "rb": "1",
+    "parent": "[0, 1, 1, 1, 3, 1]"
+   },
+   "ret": "[2, 5]"
+  }
+ ]
+}

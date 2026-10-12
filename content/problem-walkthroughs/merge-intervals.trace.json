@@ -1,0 +1,333 @@
+{
+ "problem": "merge-intervals",
+ "block": 1,
+ "version": 2,
+ "source": "f04b3d148de3a944",
+ "code": "def merge(intervals: list[list[int]]) -> list[list[int]]:\n    if not intervals:\n        return []\n    intervals = sorted(intervals, key=lambda iv: iv[0])\n    merged: list[list[int]] = [list(intervals[0])]\n    for start, end in intervals[1:]:\n        last = merged[-1]\n        if start <= last[1]:\n            last[1] = max(last[1], end)   # overlap: extend\n        else:\n            merged.append([start, end])   # gap: start a new one\n    return merged\n",
+ "args": [
+  [
+   [
+    8,
+    10
+   ],
+   [
+    1,
+    4
+   ],
+   [
+    2,
+    3
+   ],
+   [
+    4,
+    6
+   ]
+  ]
+ ],
+ "result": "[[1, 6], [8, 10]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[8, 10], [1, 4], [2, 3], [4, 6]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[8, 10], [1, 4], [2, 3], [4, 6]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "merge",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[8, 10]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "merge",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[8, 10]"
+   },
+   "ret": "8"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "merge",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[1, 4]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "merge",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[1, 4]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "merge",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[2, 3]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "merge",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[2, 3]"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "merge",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[4, 6]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "merge",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[4, 6]"
+   },
+   "ret": "4"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 4]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 4]]",
+    "start": "2",
+    "end": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 4]]",
+    "start": "2",
+    "end": "3",
+    "last": "[1, 4]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 4]]",
+    "start": "2",
+    "end": "3",
+    "last": "[1, 4]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 4]]",
+    "start": "2",
+    "end": "3",
+    "last": "[1, 4]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 4]]",
+    "start": "4",
+    "end": "6",
+    "last": "[1, 4]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 4]]",
+    "start": "4",
+    "end": "6",
+    "last": "[1, 4]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 4]]",
+    "start": "4",
+    "end": "6",
+    "last": "[1, 4]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 6]]",
+    "start": "4",
+    "end": "6",
+    "last": "[1, 6]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 6]]",
+    "start": "8",
+    "end": "10",
+    "last": "[1, 6]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 6]]",
+    "start": "8",
+    "end": "10",
+    "last": "[1, 6]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 6]]",
+    "start": "8",
+    "end": "10",
+    "last": "[1, 6]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 6], [8, 10]]",
+    "start": "8",
+    "end": "10",
+    "last": "[1, 6]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 6], [8, 10]]",
+    "start": "8",
+    "end": "10",
+    "last": "[1, 6]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "merge"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 3], [4, 6], [8, 10]]",
+    "merged": "[[1, 6], [8, 10]]",
+    "start": "8",
+    "end": "10",
+    "last": "[1, 6]"
+   },
+   "ret": "[[1, 6], [8, 10]]"
+  }
+ ]
+}

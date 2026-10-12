@@ -1,0 +1,950 @@
+{
+ "problem": "happy-number",
+ "block": 1,
+ "version": 2,
+ "source": "fa9b67854345b9b9",
+ "code": "def is_happy(n: int) -> bool:\n    def step(x: int) -> int:\n        total = 0\n        while x:\n            x, d = divmod(x, 10)\n            total += d * d\n        return total\n\n    slow, fast = n, step(n)\n    while fast != 1 and slow != fast:\n        slow = step(slow)\n        fast = step(step(fast))\n    return fast == 1\n",
+ "args": [
+  19
+ ],
+ "result": "true",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "19"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "19",
+    "total": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "19",
+    "total": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "0",
+    "d": "9"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "81",
+    "d": "9"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "81",
+    "d": "9"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "81",
+    "d": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "82",
+    "d": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "82",
+    "d": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "82",
+    "d": "1"
+   },
+   "ret": "82"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19",
+    "slow": "19",
+    "fast": "82"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19",
+    "slow": "19",
+    "fast": "82"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "19"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "19",
+    "total": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "19",
+    "total": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "0",
+    "d": "9"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "81",
+    "d": "9"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "81",
+    "d": "9"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "81",
+    "d": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "82",
+    "d": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "82",
+    "d": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "82",
+    "d": "1"
+   },
+   "ret": "82"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19",
+    "slow": "82",
+    "fast": "82"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "82"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "82",
+    "total": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "82",
+    "total": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "8",
+    "total": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "8",
+    "total": "4",
+    "d": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "8",
+    "total": "4",
+    "d": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "4",
+    "d": "8"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "68",
+    "d": "8"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "68",
+    "d": "8"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "68",
+    "d": "8"
+   },
+   "ret": "68"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "68"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "68",
+    "total": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "68",
+    "total": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "6",
+    "total": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "6",
+    "total": "64",
+    "d": "8"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "6",
+    "total": "64",
+    "d": "8"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "64",
+    "d": "6"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "100",
+    "d": "6"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "100",
+    "d": "6"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "100",
+    "d": "6"
+   },
+   "ret": "100"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19",
+    "slow": "82",
+    "fast": "100"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19",
+    "slow": "82",
+    "fast": "100"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "82"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "82",
+    "total": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "82",
+    "total": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "8",
+    "total": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "8",
+    "total": "4",
+    "d": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "8",
+    "total": "4",
+    "d": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "4",
+    "d": "8"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "68",
+    "d": "8"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "68",
+    "d": "8"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "68",
+    "d": "8"
+   },
+   "ret": "68"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19",
+    "slow": "68",
+    "fast": "100"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "100"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "100",
+    "total": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "100",
+    "total": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "10",
+    "total": "0",
+    "d": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "10",
+    "total": "0",
+    "d": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "10",
+    "total": "0",
+    "d": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "0",
+    "d": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "0",
+    "d": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "0",
+    "d": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "1",
+    "d": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "1",
+    "d": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "1",
+    "d": "1"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "1",
+    "total": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "1",
+    "d": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "1",
+    "d": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_happy",
+    "step"
+   ],
+   "vars": {
+    "x": "0",
+    "total": "1",
+    "d": "1"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19",
+    "slow": "68",
+    "fast": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19",
+    "slow": "68",
+    "fast": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_happy"
+   ],
+   "vars": {
+    "n": "19",
+    "slow": "68",
+    "fast": "1"
+   },
+   "ret": "True"
+  }
+ ]
+}

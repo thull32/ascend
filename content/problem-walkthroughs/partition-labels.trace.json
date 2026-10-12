@@ -1,0 +1,793 @@
+{
+ "problem": "partition-labels",
+ "block": 1,
+ "version": 2,
+ "source": "3829b9a7b7a3db84",
+ "code": "def partition_labels(s: str) -> list[int]:\n    last = {c: i for i, c in enumerate(s)}   # later writes win: last occurrence\n    sizes: list[int] = []\n    start = end = 0\n    for i, c in enumerate(s):\n        end = max(end, last[c])\n        if i == end:\n            sizes.append(end - start + 1)\n            start = i + 1\n    return sizes\n",
+ "args": [
+  "abcabdefgfe"
+ ],
+ "result": "[5, 1, 5]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "0",
+    "c": "'a'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "1",
+    "c": "'b'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "2",
+    "c": "'c'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "3",
+    "c": "'a'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "4",
+    "c": "'b'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "5",
+    "c": "'d'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "6",
+    "c": "'e'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "7",
+    "c": "'f'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "8",
+    "c": "'g'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "9",
+    "c": "'f'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "10",
+    "c": "'e'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "0",
+    "c": "'a'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "0",
+    "c": "'a'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "0",
+    "c": "'a'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "1",
+    "c": "'b'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "1",
+    "c": "'b'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "1",
+    "c": "'b'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "2",
+    "c": "'c'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "2",
+    "c": "'c'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "2",
+    "c": "'c'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "3",
+    "c": "'a'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "3",
+    "c": "'a'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "3",
+    "c": "'a'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "4",
+    "c": "'b'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "4",
+    "c": "'b'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "4",
+    "c": "'b'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "4",
+    "c": "'b'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5]",
+    "start": "0",
+    "end": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "4",
+    "c": "'b'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5]",
+    "start": "5",
+    "end": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "5",
+    "c": "'d'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5]",
+    "start": "5",
+    "end": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "5",
+    "c": "'d'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5]",
+    "start": "5",
+    "end": "5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "5",
+    "c": "'d'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5]",
+    "start": "5",
+    "end": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "5",
+    "c": "'d'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "5",
+    "end": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "5",
+    "c": "'d'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "5"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "6",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "6",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "6",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "7",
+    "c": "'f'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "7",
+    "c": "'f'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "7",
+    "c": "'f'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "8",
+    "c": "'g'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "8",
+    "c": "'g'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "8",
+    "c": "'g'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "9",
+    "c": "'f'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "9",
+    "c": "'f'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "9",
+    "c": "'f'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "10",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "10",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "10",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "10",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1, 5]",
+    "start": "6",
+    "end": "10"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "10",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1, 5]",
+    "start": "11",
+    "end": "10"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "10",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1, 5]",
+    "start": "11",
+    "end": "10"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "partition_labels"
+   ],
+   "vars": {
+    "s": "'abcabdefgfe'",
+    "i": "10",
+    "c": "'e'",
+    "last": "{'a': 3, 'b': 4, 'c': 2, 'd': 5, 'e': 10, 'f': 9, 'g': 8}",
+    "sizes": "[5, 1, 5]",
+    "start": "11",
+    "end": "10"
+   },
+   "ret": "[5, 1, 5]"
+  }
+ ]
+}

@@ -1,0 +1,1895 @@
+{
+ "problem": "combination-sum",
+ "block": 1,
+ "version": 2,
+ "source": "106374c93fb180ba",
+ "code": "def combination_sum(candidates: list[int], target: int) -> list[list[int]]:\n    candidates = sorted(candidates)\n    result: list[list[int]] = []\n    path: list[int] = []\n\n    def backtrack(start: int, remaining: int) -> None:\n        if remaining == 0:\n            result.append(path[:])\n            return\n        for i in range(start, len(candidates)):\n            c = candidates[i]\n            if c > remaining:\n                break\n            path.append(c)\n            backtrack(i, remaining - c)\n            path.pop()\n\n    backtrack(0, target)\n    return result\n",
+ "args": [
+  [
+   2,
+   3,
+   6,
+   7
+  ],
+  7
+ ],
+ "result": "[[2, 2, 3], [7]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "combination_sum"
+   ],
+   "vars": {
+    "candidates": "[2, 3, 6, 7]",
+    "target": "7"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "combination_sum"
+   ],
+   "vars": {
+    "candidates": "[2, 3, 6, 7]",
+    "target": "7"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "combination_sum"
+   ],
+   "vars": {
+    "candidates": "[2, 3, 6, 7]",
+    "target": "7",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "combination_sum"
+   ],
+   "vars": {
+    "candidates": "[2, 3, 6, 7]",
+    "target": "7",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "combination_sum"
+   ],
+   "vars": {
+    "candidates": "[2, 3, 6, 7]",
+    "target": "7",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "1",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "1",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "1",
+    "i": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "1",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "1",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "1",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 2]",
+    "result": "[]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "1",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 3]",
+    "result": "[[2, 2, 3]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "2",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "3",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[[2, 2, 3]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "1",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "2",
+    "i": "1",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "2",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "2",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "2",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 3]",
+    "result": "[[2, 2, 3]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "2",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "5",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[2]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "0",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "1",
+    "c": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "1",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "1",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "1",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "1",
+    "i": "1",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "1",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "1",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "1",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3, 3]",
+    "result": "[[2, 2, 3]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3, 3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "2",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "remaining": "4",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[3]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "1",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "2",
+    "c": "3",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[6]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "remaining": "1",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[6]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "remaining": "1",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[6]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "remaining": "1",
+    "i": "2",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[6]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "remaining": "1",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[6]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "remaining": "1",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[6]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "remaining": "1",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[6]",
+    "result": "[[2, 2, 3]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[6]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "2",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "3",
+    "c": "6",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "3",
+    "c": "7",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "3",
+    "c": "7",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "3",
+    "c": "7",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[7]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "remaining": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[7]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "remaining": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[7]",
+    "result": "[[2, 2, 3]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "remaining": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[7]",
+    "result": "[[2, 2, 3], [7]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "combination_sum",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "remaining": "0",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[7]",
+    "result": "[[2, 2, 3], [7]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "3",
+    "c": "7",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[7]",
+    "result": "[[2, 2, 3], [7]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "3",
+    "c": "7",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3], [7]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "combination_sum",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "remaining": "7",
+    "i": "3",
+    "c": "7",
+    "candidates": "[2, 3, 6, 7]",
+    "path": "[]",
+    "result": "[[2, 2, 3], [7]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "combination_sum"
+   ],
+   "vars": {
+    "candidates": "[2, 3, 6, 7]",
+    "target": "7",
+    "path": "[]",
+    "result": "[[2, 2, 3], [7]]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "combination_sum"
+   ],
+   "vars": {
+    "candidates": "[2, 3, 6, 7]",
+    "target": "7",
+    "path": "[]",
+    "result": "[[2, 2, 3], [7]]"
+   },
+   "ret": "[[2, 2, 3], [7]]"
+  }
+ ]
+}

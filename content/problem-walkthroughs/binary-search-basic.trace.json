@@ -1,0 +1,264 @@
+{
+ "problem": "binary-search-basic",
+ "block": 1,
+ "version": 2,
+ "source": "de428100056f2915",
+ "code": "def binary_search(nums: list[int], target: int) -> int:\n    lo, hi = 0, len(nums) - 1\n    while lo <= hi:\n        mid = lo + (hi - lo) // 2\n        if nums[mid] == target:\n            return mid\n        if nums[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return -1\n",
+ "args": [
+  [
+   -1,
+   0,
+   3,
+   5,
+   9,
+   12
+  ],
+  2
+ ],
+ "result": "-1",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "5",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "5",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "5",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "1",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "1",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "1",
+    "mid": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "1",
+    "mid": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "0",
+    "hi": "1",
+    "mid": "0"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "1",
+    "hi": "1",
+    "mid": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "1",
+    "hi": "1",
+    "mid": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "1",
+    "hi": "1",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "1",
+    "hi": "1",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "1",
+    "hi": "1",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "2",
+    "hi": "1",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "2",
+    "hi": "1",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "binary_search"
+   ],
+   "vars": {
+    "nums": "[-1, 0, 3, 5, 9, 12]",
+    "target": "2",
+    "lo": "2",
+    "hi": "1",
+    "mid": "1"
+   },
+   "ret": "-1"
+  }
+ ]
+}

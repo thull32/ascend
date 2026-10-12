@@ -1,0 +1,388 @@
+{
+ "problem": "coin-change-ii",
+ "block": 2,
+ "version": 2,
+ "source": "6d88eec40b646217",
+ "code": "def coin_change_ways(coins: list[int], amount: int) -> int:\n    ways = [0] * (amount + 1)\n    ways[0] = 1\n    for c in coins:                            # coin types outer: fixes an order\n        for a in range(c, amount + 1):         # ascending: coin c may repeat\n            ways[a] += ways[a - c]\n    return ways[amount]\n",
+ "args": [
+  [
+   1,
+   2,
+   3
+  ],
+  4
+ ],
+ "result": "4",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[0, 0, 0, 0, 0]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 0, 0, 0, 0]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 0, 0, 0, 0]",
+    "c": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 0, 0, 0, 0]",
+    "c": "1",
+    "a": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 0, 0, 0]",
+    "c": "1",
+    "a": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 0, 0, 0]",
+    "c": "1",
+    "a": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 1, 0, 0]",
+    "c": "1",
+    "a": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 1, 0, 0]",
+    "c": "1",
+    "a": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 1, 1, 0]",
+    "c": "1",
+    "a": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 1, 1, 0]",
+    "c": "1",
+    "a": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 1, 1, 1]",
+    "c": "1",
+    "a": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 1, 1, 1]",
+    "c": "1",
+    "a": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 1, 1, 1]",
+    "c": "2",
+    "a": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 1, 1, 1]",
+    "c": "2",
+    "a": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 1, 1]",
+    "c": "2",
+    "a": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 1, 1]",
+    "c": "2",
+    "a": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 2, 1]",
+    "c": "2",
+    "a": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 2, 1]",
+    "c": "2",
+    "a": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 2, 3]",
+    "c": "2",
+    "a": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 2, 3]",
+    "c": "2",
+    "a": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 2, 3]",
+    "c": "3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 2, 3]",
+    "c": "3",
+    "a": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 3, 3]",
+    "c": "3",
+    "a": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 3, 3]",
+    "c": "3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 3, 4]",
+    "c": "3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 3, 4]",
+    "c": "3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 3, 4]",
+    "c": "3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "coin_change_ways"
+   ],
+   "vars": {
+    "coins": "[1, 2, 3]",
+    "amount": "4",
+    "ways": "[1, 1, 2, 3, 4]",
+    "c": "3",
+    "a": "4"
+   },
+   "ret": "4"
+  }
+ ]
+}

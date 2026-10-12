@@ -1,0 +1,1150 @@
+{
+ "problem": "longest-common-subsequence",
+ "block": 2,
+ "version": 2,
+ "source": "af626c01aec8daf4",
+ "code": "def longest_common_subsequence(a: str, b: str) -> int:\n    if len(b) > len(a):\n        a, b = b, a                        # make the row the shorter string\n    row = [0] * (len(b) + 1)\n    for ch in a:\n        diag = 0                           # L[i-1][0]\n        for j in range(1, len(b) + 1):\n            up = row[j]                    # L[i-1][j], about to be overwritten\n            if ch == b[j - 1]:\n                row[j] = diag + 1\n            else:\n                row[j] = max(up, row[j - 1])\n            diag = up                      # becomes L[i-1][j-1] for the next j\n    return row[len(b)]\n",
+ "args": [
+  "agca",
+  "gac"
+ ],
+ "result": "2",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'",
+    "diag": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "1",
+    "up": "0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "1",
+    "up": "0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "1",
+    "up": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "1",
+    "up": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "2",
+    "up": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "2",
+    "up": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 0, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "2",
+    "up": "0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "2",
+    "up": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "2",
+    "up": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "3",
+    "up": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "3",
+    "up": "0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 0]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "3",
+    "up": "0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 1]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "3",
+    "up": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 1]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "3",
+    "up": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 1]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "3",
+    "up": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "3",
+    "up": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "3",
+    "up": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "1",
+    "up": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "1",
+    "up": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 0, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "1",
+    "up": "0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "1",
+    "up": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "1",
+    "up": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "2",
+    "up": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "0",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'g'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "0",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "0",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "0",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "0",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "0",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 1]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'c'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "0",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "1",
+    "up": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 1, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "2",
+    "up": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "3",
+    "up": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "3",
+    "up": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "3",
+    "up": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "1",
+    "j": "3",
+    "up": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "2",
+    "j": "3",
+    "up": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "2",
+    "j": "3",
+    "up": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "2",
+    "j": "3",
+    "up": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "longest_common_subsequence"
+   ],
+   "vars": {
+    "a": "'agca'",
+    "b": "'gac'",
+    "row": "[0, 1, 2, 2]",
+    "ch": "'a'",
+    "diag": "2",
+    "j": "3",
+    "up": "2"
+   },
+   "ret": "2"
+  }
+ ]
+}

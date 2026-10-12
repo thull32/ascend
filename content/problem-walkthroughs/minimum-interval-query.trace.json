@@ -1,0 +1,893 @@
+{
+ "problem": "minimum-interval-query",
+ "block": 1,
+ "version": 2,
+ "source": "23002516285a109c",
+ "code": "import heapq\n\n\ndef min_interval(intervals: list[list[int]], queries: list[int]) -> list[int]:\n    intervals = sorted(intervals, key=lambda iv: iv[0])\n    order = sorted(range(len(queries)), key=lambda k: queries[k])\n    answers = [-1] * len(queries)\n    heap: list[tuple[int, int]] = []   # (size, right)\n    i = 0\n    for k in order:\n        q = queries[k]\n        while i < len(intervals) and intervals[i][0] <= q:\n            left, right = intervals[i]\n            heapq.heappush(heap, (right - left + 1, right))\n            i += 1\n        while heap and heap[0][1] < q:\n            heapq.heappop(heap)\n        if heap:\n            answers[k] = heap[0][0]\n    return answers\n",
+ "args": [
+  [
+   [
+    5,
+    6
+   ],
+   [
+    1,
+    4
+   ],
+   [
+    2,
+    2
+   ]
+  ],
+  [
+   6,
+   2,
+   9
+  ]
+ ],
+ "result": "[2, 1, -1]",
+ "frames": [
+  {
+   "line": 5,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[5, 6], [1, 4], [2, 2]]",
+    "queries": "[6, 2, 9]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[5, 6]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[5, 6]"
+   },
+   "ret": "5"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[1, 4]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[1, 4]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[2, 2]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[2, 2]"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "k": "0",
+    "queries": "[6, 2, 9]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "k": "0",
+    "queries": "[6, 2, 9]"
+   },
+   "ret": "6"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "k": "1",
+    "queries": "[6, 2, 9]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "k": "1",
+    "queries": "[6, 2, 9]"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "k": "2",
+    "queries": "[6, 2, 9]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_interval",
+    "<lambda>"
+   ],
+   "vars": {
+    "k": "2",
+    "queries": "[6, 2, 9]"
+   },
+   "ret": "9"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[]",
+    "i": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[]",
+    "i": "0",
+    "k": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[]",
+    "i": "0",
+    "k": "1",
+    "q": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[]",
+    "i": "0",
+    "k": "1",
+    "q": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[]",
+    "i": "0",
+    "k": "1",
+    "q": "2",
+    "left": "1",
+    "right": "4"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[(4, 4)]",
+    "i": "0",
+    "k": "1",
+    "q": "2",
+    "left": "1",
+    "right": "4"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[(4, 4)]",
+    "i": "1",
+    "k": "1",
+    "q": "2",
+    "left": "1",
+    "right": "4"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[(4, 4)]",
+    "i": "1",
+    "k": "1",
+    "q": "2",
+    "left": "1",
+    "right": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[(4, 4)]",
+    "i": "1",
+    "k": "1",
+    "q": "2",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "1",
+    "k": "1",
+    "q": "2",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "2",
+    "k": "1",
+    "q": "2",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "2",
+    "k": "1",
+    "q": "2",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "2",
+    "k": "1",
+    "q": "2",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, -1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "2",
+    "k": "1",
+    "q": "2",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "2",
+    "k": "1",
+    "q": "2",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "2",
+    "k": "0",
+    "q": "2",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "2",
+    "k": "0",
+    "q": "6",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "2",
+    "k": "0",
+    "q": "6",
+    "left": "2",
+    "right": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(1, 2), (4, 4)]",
+    "i": "2",
+    "k": "0",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(1, 2), (4, 4), (2, 6)]",
+    "i": "2",
+    "k": "0",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(1, 2), (4, 4), (2, 6)]",
+    "i": "3",
+    "k": "0",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(1, 2), (4, 4), (2, 6)]",
+    "i": "3",
+    "k": "0",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(1, 2), (4, 4), (2, 6)]",
+    "i": "3",
+    "k": "0",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(2, 6), (4, 4)]",
+    "i": "3",
+    "k": "0",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(2, 6), (4, 4)]",
+    "i": "3",
+    "k": "0",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[-1, 1, -1]",
+    "heap": "[(2, 6), (4, 4)]",
+    "i": "3",
+    "k": "0",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[(2, 6), (4, 4)]",
+    "i": "3",
+    "k": "0",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[(2, 6), (4, 4)]",
+    "i": "3",
+    "k": "2",
+    "q": "6",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[(2, 6), (4, 4)]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[(2, 6), (4, 4)]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[(2, 6), (4, 4)]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[(4, 4)]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[(4, 4)]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_interval"
+   ],
+   "vars": {
+    "intervals": "[[1, 4], [2, 2], [5, 6]]",
+    "queries": "[6, 2, 9]",
+    "order": "[1, 0, 2]",
+    "answers": "[2, 1, -1]",
+    "heap": "[]",
+    "i": "3",
+    "k": "2",
+    "q": "9",
+    "left": "5",
+    "right": "6"
+   },
+   "ret": "[2, 1, -1]"
+  }
+ ]
+}

@@ -1,0 +1,818 @@
+{
+ "problem": "subsets-ii",
+ "block": 1,
+ "version": 2,
+ "source": "1181177cfffaac98",
+ "code": "def subsets_with_dup(nums: list[int]) -> list[list[int]]:\n    nums = sorted(nums)\n    result: list[list[int]] = []\n    path: list[int] = []\n\n    def backtrack(start: int) -> None:\n        result.append(path[:])\n        for i in range(start, len(nums)):\n            if i > start and nums[i] == nums[i - 1]:\n                continue\n            path.append(nums[i])\n            backtrack(i + 1)\n            path.pop()\n\n    backtrack(0)\n    return result\n",
+ "args": [
+  [
+   1,
+   2,
+   2
+  ]
+ ],
+ "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "subsets_with_dup"
+   ],
+   "vars": {
+    "nums": "[1, 2, 2]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "subsets_with_dup"
+   ],
+   "vars": {
+    "nums": "[1, 2, 2]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "subsets_with_dup"
+   ],
+   "vars": {
+    "nums": "[1, 2, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "subsets_with_dup"
+   ],
+   "vars": {
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "subsets_with_dup"
+   ],
+   "vars": {
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "0",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "0",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "0",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[], [1]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[], [1]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[], [1]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2]",
+    "result": "[[], [1]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2]",
+    "result": "[[], [1]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2]",
+    "result": "[[], [1], [1, 2]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2]",
+    "result": "[[], [1], [1, 2]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2]",
+    "result": "[[], [1], [1, 2]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2, 2]",
+    "result": "[[], [1], [1, 2]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2, 2]",
+    "result": "[[], [1], [1, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[1, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "0",
+    "nums": "[1, 2, 2]",
+    "path": "[1]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "0",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2]]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2]]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[2, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2]]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "nums": "[1, 2, 2]",
+    "path": "[2, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "nums": "[1, 2, 2]",
+    "path": "[2, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "nums": "[1, 2, 2]",
+    "path": "[2, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[2, 2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[2]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "1",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "subsets_with_dup",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "i": "2",
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "subsets_with_dup"
+   ],
+   "vars": {
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "subsets_with_dup"
+   ],
+   "vars": {
+    "nums": "[1, 2, 2]",
+    "path": "[]",
+    "result": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+   },
+   "ret": "[[], [1], [1, 2], [1, 2, 2], [2], [2, 2]]"
+  }
+ ]
+}

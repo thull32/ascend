@@ -1,0 +1,1645 @@
+{
+ "problem": "letter-combinations",
+ "block": 1,
+ "version": 2,
+ "source": "687fc7cb762a6a65",
+ "code": "def letter_combinations(digits: str) -> list[str]:\n    if not digits:\n        return []\n    keypad = {\n        \"2\": \"abc\", \"3\": \"def\", \"4\": \"ghi\", \"5\": \"jkl\",\n        \"6\": \"mno\", \"7\": \"pqrs\", \"8\": \"tuv\", \"9\": \"wxyz\",\n    }\n    result: list[str] = []\n    path: list[str] = []\n\n    def backtrack(i: int) -> None:\n        if i == len(digits):\n            result.append(\"\".join(path))\n            return\n        for ch in keypad[digits[i]]:\n            path.append(ch)\n            backtrack(i + 1)\n            path.pop()\n\n    backtrack(0)\n    return result\n",
+ "args": [
+  "23"
+ ],
+ "result": "[\"ad\", \"ae\", \"af\", \"bd\", \"be\", \"bf\", \"cd\", \"ce\", \"cf\"]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'a'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'a'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'd']",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'd']",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'd']",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'd']",
+    "result": "['ad']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'd']",
+    "result": "['ad']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'd']",
+    "result": "['ad']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "['ad']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "['ad']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'e']",
+    "result": "['ad']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'e']",
+    "result": "['ad']"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'e']",
+    "result": "['ad']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'e']",
+    "result": "['ad', 'ae']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'e']",
+    "result": "['ad', 'ae']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'e']",
+    "result": "['ad', 'ae']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "['ad', 'ae']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "['ad', 'ae']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'f']",
+    "result": "['ad', 'ae']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'f']",
+    "result": "['ad', 'ae']"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'f']",
+    "result": "['ad', 'ae']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'f']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'f']",
+    "result": "['ad', 'ae', 'af']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a', 'f']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "['ad', 'ae', 'af']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'a'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['a']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'a'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'b'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'b'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'd']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'd']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'd']",
+    "result": "['ad', 'ae', 'af']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'd']",
+    "result": "['ad', 'ae', 'af', 'bd']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'd']",
+    "result": "['ad', 'ae', 'af', 'bd']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'd']",
+    "result": "['ad', 'ae', 'af', 'bd']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af', 'bd']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af', 'bd']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd']"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be']"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'b'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['b']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'b'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'c'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'c'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'd']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'd']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'd']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'd']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'd']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'd']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'d'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd']"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'e']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'e'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce']"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce']"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce']"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce']"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c', 'f']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "ch": "'f'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'c'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "['c']",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'c'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "letter_combinations",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "ch": "'c'",
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 21,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "letter_combinations"
+   ],
+   "vars": {
+    "digits": "'23'",
+    "keypad": "{'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl', '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}",
+    "path": "[]",
+    "result": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+   },
+   "ret": "['ad', 'ae', 'af', 'bd', 'be', 'bf', 'cd', 'ce', 'cf']"
+  }
+ ]
+}

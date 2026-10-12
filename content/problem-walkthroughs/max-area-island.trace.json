@@ -1,0 +1,1666 @@
+{
+ "problem": "max-area-island",
+ "block": 1,
+ "version": 2,
+ "source": "6ffe6feccece3b84",
+ "code": "def max_area_of_island(grid: list[list[int]]) -> int:\n    if not grid or not grid[0]:\n        return 0\n    rows, cols = len(grid), len(grid[0])\n    best = 0\n    for r0 in range(rows):\n        for c0 in range(cols):\n            if grid[r0][c0] != 1:\n                continue\n            grid[r0][c0] = 0                 # mark on push\n            stack = [(r0, c0)]\n            area = 1\n            while stack:\n                r, c = stack.pop()\n                for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):\n                    if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:\n                        grid[nr][nc] = 0\n                        stack.append((nr, nc))\n                        area += 1\n            best = max(best, area)\n    return best\n",
+ "args": [
+  [
+   [
+    1,
+    0,
+    1
+   ],
+   [
+    0,
+    1,
+    1
+   ]
+  ]
+ ],
+ "result": "3",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[1, 0, 1], [0, 1, 1]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[1, 0, 1], [0, 1, 1]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[1, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[1, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[1, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[1, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[1, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[(0, 0)]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[(0, 0)]",
+    "area": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[(0, 0)]",
+    "area": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "-1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "-1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "0",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "1",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "1",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "1",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 1], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(0, 2)]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(0, 2)]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(0, 2)]",
+    "area": "1",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "-1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "2",
+    "nr": "1",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 1]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "2",
+    "nr": "1",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "1",
+    "r": "0",
+    "c": "2",
+    "nr": "1",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "1",
+    "r": "0",
+    "c": "2",
+    "nr": "1",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "2",
+    "r": "0",
+    "c": "2",
+    "nr": "1",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "2",
+    "r": "0",
+    "c": "2",
+    "nr": "-1",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "2",
+    "r": "0",
+    "c": "2",
+    "nr": "-1",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "2",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "3"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "2",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "3"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "2",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "2",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "2",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 2)]",
+    "area": "2",
+    "r": "0",
+    "c": "2",
+    "nr": "0",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "0",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "2",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "2",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "0",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "0",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "1",
+    "nc": "3"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "1",
+    "nc": "3"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "1",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 1, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "1",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "1",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 1)]",
+    "area": "2",
+    "r": "1",
+    "c": "2",
+    "nr": "1",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 1)]",
+    "area": "3",
+    "r": "1",
+    "c": "2",
+    "nr": "1",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 1)]",
+    "area": "3",
+    "r": "1",
+    "c": "2",
+    "nr": "1",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[(1, 1)]",
+    "area": "3",
+    "r": "1",
+    "c": "2",
+    "nr": "1",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "2",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "2",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "0",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "0",
+    "nc": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "1",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "0",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "0",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "0",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "0",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "1",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "1",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "1",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "max_area_of_island"
+   ],
+   "vars": {
+    "grid": "[[0, 0, 0], [0, 0, 0]]",
+    "rows": "2",
+    "cols": "3",
+    "best": "3",
+    "r0": "1",
+    "c0": "2",
+    "stack": "[]",
+    "area": "3",
+    "r": "1",
+    "c": "1",
+    "nr": "1",
+    "nc": "0"
+   },
+   "ret": "3"
+  }
+ ]
+}

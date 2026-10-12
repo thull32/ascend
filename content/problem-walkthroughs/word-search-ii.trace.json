@@ -1,0 +1,2231 @@
+{
+ "problem": "word-search-ii",
+ "block": 1,
+ "version": 2,
+ "source": "f8257b18fa4d1039",
+ "code": "def find_words(board: list[list[str]], words: list[str]) -> list[str]:\n    root: dict = {}\n    for w in words:\n        node = root\n        for ch in w:\n            node = node.setdefault(ch, {})\n        node[\"$\"] = w\n\n    rows, cols = len(board), len(board[0])\n    found: list[str] = []\n\n    def dfs(r: int, c: int, parent: dict) -> None:\n        ch = board[r][c]\n        node = parent.get(ch)\n        if node is None:\n            return\n        word = node.pop(\"$\", None)\n        if word is not None:\n            found.append(word)\n        board[r][c] = \"#\"\n        if r > 0:\n            dfs(r - 1, c, node)\n        if r + 1 < rows:\n            dfs(r + 1, c, node)\n        if c > 0:\n            dfs(r, c - 1, node)\n        if c + 1 < cols:\n            dfs(r, c + 1, node)\n        board[r][c] = ch\n        if not node:\n            del parent[ch]\n\n    for r in range(rows):\n        for c in range(cols):\n            dfs(r, c, root)\n    return found\n",
+ "args": [
+  [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "c",
+    "d"
+   ]
+  ],
+  [
+   "abd",
+   "ad"
+  ]
+ ],
+ "result": "[\"abd\"]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{}",
+    "w": "'abd'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{}",
+    "w": "'abd'",
+    "node": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{}",
+    "w": "'abd'",
+    "node": "{}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {}}",
+    "w": "'abd'",
+    "node": "{}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {}}",
+    "w": "'abd'",
+    "node": "{}",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {}}}",
+    "w": "'abd'",
+    "node": "{}",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {}}}",
+    "w": "'abd'",
+    "node": "{}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}}}",
+    "w": "'abd'",
+    "node": "{}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}}}",
+    "w": "'abd'",
+    "node": "{}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}}}",
+    "w": "'abd'",
+    "node": "{'$': 'abd'}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}}}",
+    "w": "'ad'",
+    "node": "{'$': 'abd'}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}}}",
+    "w": "'ad'",
+    "node": "{'a': {'b': {'d': …}}}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}}}",
+    "w": "'ad'",
+    "node": "{'a': {'b': {'d': …}}}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}}}",
+    "w": "'ad'",
+    "node": "{'b': {'d': {'$': 'abd'}}}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}}}",
+    "w": "'ad'",
+    "node": "{'b': {'d': {'$': 'abd'}}}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}, 'd': {}}}",
+    "w": "'ad'",
+    "node": "{}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}, 'd': {}}}",
+    "w": "'ad'",
+    "node": "{}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "cols": "2",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "0",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "0",
+    "c": "0",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'c'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'c'",
+    "node": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'c'",
+    "node": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'c'",
+    "node": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 25,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'b': {'d': …}, 'd': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{'d': {'$': 'abd'}}",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{'d': {'$': 'abd'}}",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{'d': {'$': 'abd'}}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{'d': {'$': 'abd'}}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{'d': {'$': 'abd'}}",
+    "word": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{'d': {'$': 'abd'}}",
+    "word": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {'d': {'$': 'abd'}}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{'d': {'$': 'abd'}}",
+    "word": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {'$': 'abd'}}",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {'$': 'abd'}}",
+    "ch": "'d'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {'$': 'abd'}}",
+    "ch": "'d'",
+    "node": "{'$': 'abd'}",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {'$': 'abd'}}",
+    "ch": "'d'",
+    "node": "{'$': 'abd'}",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "[]",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{}",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{}",
+    "ch": "'#'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{}",
+    "ch": "'#'",
+    "node": "None",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{}",
+    "ch": "'#'",
+    "node": "None",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{}",
+    "ch": "'#'",
+    "node": "None",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 23,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{}",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{}",
+    "ch": "'c'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{}",
+    "ch": "'c'",
+    "node": "None",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{}",
+    "ch": "'c'",
+    "node": "None",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{}",
+    "ch": "'c'",
+    "node": "None",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 27,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'d': {}}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{}",
+    "ch": "'d'",
+    "node": "{}",
+    "word": "'abd'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 25,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{}",
+    "word": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{}",
+    "word": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{}",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{}",
+    "ch": "'#'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{}",
+    "ch": "'#'",
+    "node": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{}",
+    "ch": "'#'",
+    "node": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{}",
+    "ch": "'#'",
+    "node": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 27,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{}",
+    "word": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{}",
+    "word": "None",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'b': {}, 'd': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "find_words",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'d': {'$': 'ad'}}",
+    "ch": "'b'",
+    "node": "{}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 29,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'d': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'d': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'a'",
+    "node": "{'d': {'$': 'ad'}}",
+    "word": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 34,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "0",
+    "c": "0",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "0",
+    "c": "1",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'b'",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'b'",
+    "node": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'b'",
+    "node": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'b'",
+    "node": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 34,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "0",
+    "c": "1",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "0",
+    "c": "1",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "1",
+    "c": "1",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "1",
+    "c": "0",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'c'",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'c'",
+    "node": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'c'",
+    "node": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'c'",
+    "node": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 34,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "1",
+    "c": "0",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "1",
+    "c": "1",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'d'",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'d'",
+    "node": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'d'",
+    "node": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_words",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "parent": "{'a': {'d': {'$': 'ad'}}}",
+    "ch": "'d'",
+    "node": "None",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 34,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "1",
+    "c": "1",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "1",
+    "c": "1",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "1",
+    "c": "1",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "find_words"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "words": "['abd', 'ad']",
+    "root": "{'a': {'d': {'$': 'ad'}}}",
+    "w": "'ad'",
+    "node": "{'$': 'ad'}",
+    "ch": "'d'",
+    "r": "1",
+    "c": "1",
+    "cols": "2",
+    "found": "['abd']",
+    "rows": "2"
+   },
+   "ret": "['abd']"
+  }
+ ]
+}

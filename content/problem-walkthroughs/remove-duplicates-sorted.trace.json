@@ -1,0 +1,225 @@
+{
+ "problem": "remove-duplicates-sorted",
+ "block": 1,
+ "version": 2,
+ "source": "f157d3605fb2ed83",
+ "code": "def remove_duplicates(nums: list[int]) -> list:\n    if not nums:\n        return [0, []]\n    write = 1                                   # nums[0] is always kept\n    for read in range(1, len(nums)):\n        if nums[read] != nums[write - 1]:\n            nums[write] = nums[read]\n            write += 1\n    return [write, nums[:write]]\n",
+ "args": [
+  [
+   0,
+   0,
+   1,
+   1,
+   1,
+   2
+  ]
+ ],
+ "result": "[3, [0, 1, 2]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 1, 2]",
+    "write": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 1, 2]",
+    "write": "1",
+    "read": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 1, 2]",
+    "write": "1",
+    "read": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 1, 2]",
+    "write": "1",
+    "read": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 1, 2]",
+    "write": "1",
+    "read": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 1, 1, 1, 2]",
+    "write": "1",
+    "read": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 1, 1, 1, 2]",
+    "write": "2",
+    "read": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 1, 1, 1, 2]",
+    "write": "2",
+    "read": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 1, 1, 1, 2]",
+    "write": "2",
+    "read": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 1, 1, 1, 2]",
+    "write": "2",
+    "read": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 1, 1, 1, 2]",
+    "write": "2",
+    "read": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 1, 1, 1, 2]",
+    "write": "2",
+    "read": "5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 1, 1, 1, 2]",
+    "write": "2",
+    "read": "5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 2, 1, 1, 2]",
+    "write": "2",
+    "read": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 2, 1, 1, 2]",
+    "write": "3",
+    "read": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 2, 1, 1, 2]",
+    "write": "3",
+    "read": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "remove_duplicates"
+   ],
+   "vars": {
+    "nums": "[0, 1, 2, 1, 1, 2]",
+    "write": "3",
+    "read": "5"
+   },
+   "ret": "[3, [0, 1, 2]]"
+  }
+ ]
+}

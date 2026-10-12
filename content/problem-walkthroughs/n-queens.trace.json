@@ -1,0 +1,5853 @@
+{
+ "problem": "n-queens",
+ "block": 1,
+ "version": 2,
+ "source": "aed9ea1e6dce07ab",
+ "code": "def solve_n_queens(n: int) -> list[list[str]]:\n    result: list[list[str]] = []\n    cols: set[int] = set()\n    diag: set[int] = set()       # r - c\n    anti: set[int] = set()       # r + c\n    placement: list[int] = []    # placement[r] = column of the queen in row r\n\n    def backtrack(r: int) -> None:\n        if r == n:\n            result.append([\".\" * c + \"Q\" + \".\" * (n - c - 1) for c in placement])\n            return\n        for c in range(n):\n            if c in cols or (r - c) in diag or (r + c) in anti:\n                continue\n            cols.add(c); diag.add(r - c); anti.add(r + c)\n            placement.append(c)\n            backtrack(r + 1)\n            placement.pop()\n            cols.discard(c); diag.discard(r - c); anti.discard(r + c)\n\n    backtrack(0)\n    return result\n",
+ "args": [
+  4
+ ],
+ "result": "[[\".Q..\", \"...Q\", \"Q...\", \"..Q.\"], [\"..Q.\", \"Q...\", \"...Q\", \".Q..\"]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "solve_n_queens"
+   ],
+   "vars": {
+    "n": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "solve_n_queens"
+   ],
+   "vars": {
+    "n": "4",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "solve_n_queens"
+   ],
+   "vars": {
+    "n": "4",
+    "cols": "set()",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "solve_n_queens"
+   ],
+   "vars": {
+    "n": "4",
+    "cols": "set()",
+    "diag": "set()",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "solve_n_queens"
+   ],
+   "vars": {
+    "n": "4",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "solve_n_queens"
+   ],
+   "vars": {
+    "n": "4",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "solve_n_queens"
+   ],
+   "vars": {
+    "n": "4",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{0, 3}",
+    "cols": "{0, 2}",
+    "diag": "{0, -1}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3, 1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 3, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{0, 1, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{0, 4}",
+    "cols": "{0, 3}",
+    "diag": "{0, -2}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "anti": "{0}",
+    "cols": "{0}",
+    "diag": "{0}",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "c": "1",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "c": "3",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "c": "0",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "c": "2",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 2, 4}",
+    "cols": "{0, 1, 3}",
+    "diag": "{2, -1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{1, 4}",
+    "cols": "{1, 3}",
+    "diag": "{-1, -2}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "anti": "{1}",
+    "cols": "{1}",
+    "diag": "{-1}",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "2",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "2",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "2",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "2",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "c": "2",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "c": "0",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "c": "3",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "c": "1",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.']]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "4",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 4, 5}",
+    "cols": "{0, 1, 2, 3}",
+    "diag": "{1, 2, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0, 3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 2, 5}",
+    "cols": "{0, 2, 3}",
+    "diag": "{1, -1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1, 2}",
+    "cols": "{0, 2}",
+    "diag": "{1, -2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "2",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "2",
+    "anti": "{2}",
+    "cols": "{2}",
+    "diag": "{-2}",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "2",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "3",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "3",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "3",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "3",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "0",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "1",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "2",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "3",
+    "c": "3",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0, 2]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 3, 4}",
+    "cols": "{0, 2, 3}",
+    "diag": "{0, 1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3, 0]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{1, 3}",
+    "cols": "{0, 3}",
+    "diag": "{1, -3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "0",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "1",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "2",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "2",
+    "c": "3",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3, 1]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{2, 3}",
+    "cols": "{1, 3}",
+    "diag": "{0, -3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "2",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "3",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "3",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[3]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "3",
+    "anti": "{3}",
+    "cols": "{3}",
+    "diag": "{-3}",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "3",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "solve_n_queens",
+    "backtrack"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "3",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "n": "4",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 22,
+   "stack": [
+    "solve_n_queens"
+   ],
+   "vars": {
+    "n": "4",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "solve_n_queens"
+   ],
+   "vars": {
+    "n": "4",
+    "anti": "set()",
+    "cols": "set()",
+    "diag": "set()",
+    "placement": "[]",
+    "result": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+   },
+   "ret": "[['.Q..', '...Q', 'Q...', '..Q.'], ['..Q.', 'Q...', '...Q', '.Q..']]"
+  }
+ ]
+}

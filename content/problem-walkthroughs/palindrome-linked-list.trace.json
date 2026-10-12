@@ -1,0 +1,643 @@
+{
+ "problem": "palindrome-linked-list",
+ "block": 1,
+ "version": 2,
+ "source": "563a434ba3ab0c32",
+ "code": "def is_palindrome(head: ListNode | None) -> bool:\n    if head is None or head.next is None:\n        return True\n\n    slow, fast = head, head\n    while fast is not None and fast.next is not None:\n        slow = slow.next\n        fast = fast.next.next\n\n    def reverse(node):\n        prev = None\n        while node is not None:\n            nxt = node.next\n            node.next = prev\n            prev = node\n            node = nxt\n        return prev\n\n    second = reverse(slow)\n    ok = True\n    a, b = head, second\n    while b is not None:\n        if a.val != b.val:\n            ok = False\n            break\n        a, b = a.next, b.next\n\n    reverse(second)      # restore the original list\n    return ok\n",
+ "args": [
+  {
+   "$list": [
+    1,
+    2,
+    2,
+    1
+   ]
+  }
+ ],
+ "result": "true",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "1 → 2 → 2 → 1",
+    "fast": "1 → 2 → 2 → 1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "1 → 2 → 2 → 1",
+    "fast": "1 → 2 → 2 → 1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "2 → 2 → 1",
+    "fast": "1 → 2 → 2 → 1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "2 → 2 → 1",
+    "fast": "2 → 1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "2 → 2 → 1",
+    "fast": "2 → 1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "2 → 1",
+    "fast": "2 → 1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "2 → 1",
+    "fast": "None"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "2 → 1",
+    "fast": "None"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "2 → 1",
+    "fast": "None"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2 → 1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2 → 1",
+    "prev": "None"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2 → 1",
+    "prev": "None"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2 → 1",
+    "prev": "None",
+    "nxt": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2",
+    "prev": "None",
+    "nxt": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2",
+    "prev": "2",
+    "nxt": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1",
+    "prev": "2",
+    "nxt": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1",
+    "prev": "2",
+    "nxt": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1",
+    "prev": "2",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1 → 2",
+    "prev": "2",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1 → 2",
+    "prev": "1 → 2",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "None",
+    "prev": "1 → 2",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "None",
+    "prev": "1 → 2",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "None",
+    "prev": "1 → 2",
+    "nxt": "None"
+   },
+   "ret": "1 → 2"
+  },
+  {
+   "line": 20,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2",
+    "ok": "True"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2",
+    "ok": "True",
+    "a": "1 → 2 → 2",
+    "b": "1 → 2"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2",
+    "ok": "True",
+    "a": "1 → 2 → 2",
+    "b": "1 → 2"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2",
+    "ok": "True",
+    "a": "1 → 2 → 2",
+    "b": "1 → 2"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2",
+    "ok": "True",
+    "a": "2 → 2",
+    "b": "2"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2",
+    "ok": "True",
+    "a": "2 → 2",
+    "b": "2"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2",
+    "ok": "True",
+    "a": "2 → 2",
+    "b": "2"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2",
+    "ok": "True",
+    "a": "2",
+    "b": "None"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2",
+    "slow": "2",
+    "fast": "None",
+    "second": "1 → 2",
+    "ok": "True",
+    "a": "2",
+    "b": "None"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1 → 2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1 → 2",
+    "prev": "None"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1 → 2",
+    "prev": "None"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1 → 2",
+    "prev": "None",
+    "nxt": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1",
+    "prev": "None",
+    "nxt": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "1",
+    "prev": "1",
+    "nxt": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2",
+    "prev": "1",
+    "nxt": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2",
+    "prev": "1",
+    "nxt": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2",
+    "prev": "1",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2 → 1",
+    "prev": "1",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "2 → 1",
+    "prev": "2 → 1",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "None",
+    "prev": "2 → 1",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "None",
+    "prev": "2 → 1",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "is_palindrome",
+    "reverse"
+   ],
+   "vars": {
+    "node": "None",
+    "prev": "2 → 1",
+    "nxt": "None"
+   },
+   "ret": "2 → 1"
+  },
+  {
+   "line": 29,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "2 → 1",
+    "fast": "None",
+    "second": "1",
+    "ok": "True",
+    "a": "2 → 1",
+    "b": "None"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "is_palindrome"
+   ],
+   "vars": {
+    "head": "1 → 2 → 2 → 1",
+    "slow": "2 → 1",
+    "fast": "None",
+    "second": "1",
+    "ok": "True",
+    "a": "2 → 1",
+    "b": "None"
+   },
+   "ret": "True"
+  }
+ ]
+}

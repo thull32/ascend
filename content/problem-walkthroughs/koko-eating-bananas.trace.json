@@ -1,0 +1,873 @@
+{
+ "problem": "koko-eating-bananas",
+ "block": 1,
+ "version": 2,
+ "source": "39030d3948889beb",
+ "code": "def min_eating_speed(piles: list[int], h: int) -> int:\n    def hours_at(k: int) -> int:\n        return sum((p + k - 1) // k for p in piles)\n\n    lo, hi = 1, max(piles)\n    while lo < hi:\n        mid = lo + (hi - lo) // 2\n        if hours_at(mid) <= h:\n            hi = mid        # mid works; the answer is mid or slower\n        else:\n            lo = mid + 1    # mid is too slow\n    return lo\n",
+ "args": [
+  [
+   3,
+   6,
+   7,
+   11
+  ],
+  8
+ ],
+ "result": "4",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "1",
+    "hi": "11"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "1",
+    "hi": "11"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "1",
+    "hi": "11",
+    "mid": "6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at"
+   ],
+   "vars": {
+    "k": "6",
+    "piles": "[3, 6, 7, 11]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "k": "6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "3",
+    "k": "6"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "3",
+    "k": "6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "6",
+    "k": "6"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "6",
+    "k": "6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "7",
+    "k": "6"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "7",
+    "k": "6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "6"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "6"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at"
+   ],
+   "vars": {
+    "k": "6",
+    "piles": "[3, 6, 7, 11]"
+   },
+   "ret": "6"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "1",
+    "hi": "11",
+    "mid": "6"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "1",
+    "hi": "6",
+    "mid": "6"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "1",
+    "hi": "6",
+    "mid": "6"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "1",
+    "hi": "6",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at"
+   ],
+   "vars": {
+    "k": "3",
+    "piles": "[3, 6, 7, 11]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "k": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "3",
+    "k": "3"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "3",
+    "k": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "6",
+    "k": "3"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "6",
+    "k": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "7",
+    "k": "3"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "7",
+    "k": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "3"
+   },
+   "ret": "4"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at"
+   ],
+   "vars": {
+    "k": "3",
+    "piles": "[3, 6, 7, 11]"
+   },
+   "ret": "10"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "1",
+    "hi": "6",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "6",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "6",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "6",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at"
+   ],
+   "vars": {
+    "k": "5",
+    "piles": "[3, 6, 7, 11]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "k": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "3",
+    "k": "5"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "3",
+    "k": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "6",
+    "k": "5"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "6",
+    "k": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "7",
+    "k": "5"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "7",
+    "k": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "5"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "5"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at"
+   ],
+   "vars": {
+    "k": "5",
+    "piles": "[3, 6, 7, 11]"
+   },
+   "ret": "8"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "6",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "5",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "5",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "5",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at"
+   ],
+   "vars": {
+    "k": "4",
+    "piles": "[3, 6, 7, 11]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "k": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "3",
+    "k": "4"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "3",
+    "k": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "6",
+    "k": "4"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "6",
+    "k": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "7",
+    "k": "4"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "7",
+    "k": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "4"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at",
+    "<genexpr>"
+   ],
+   "vars": {
+    "p": "11",
+    "k": "4"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_eating_speed",
+    "hours_at"
+   ],
+   "vars": {
+    "k": "4",
+    "piles": "[3, 6, 7, 11]"
+   },
+   "ret": "8"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "5",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "4",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "4",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_eating_speed"
+   ],
+   "vars": {
+    "piles": "[3, 6, 7, 11]",
+    "h": "8",
+    "lo": "4",
+    "hi": "4",
+    "mid": "4"
+   },
+   "ret": "4"
+  }
+ ]
+}

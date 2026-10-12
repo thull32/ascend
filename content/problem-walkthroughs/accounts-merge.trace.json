@@ -1,0 +1,1857 @@
+{
+ "problem": "accounts-merge",
+ "block": 1,
+ "version": 2,
+ "source": "04304c03ff1ce419",
+ "code": "def accounts_merge(accounts: list[list[str]]) -> list[list[str]]:\n    parent: dict[str, str] = {}\n    owner: dict[str, str] = {}\n\n    def find(x: str) -> str:\n        while parent[x] != x:\n            parent[x] = parent[parent[x]]   # path halving\n            x = parent[x]\n        return x\n\n    def union(a: str, b: str) -> None:\n        ra, rb = find(a), find(b)\n        if ra != rb:\n            parent[rb] = ra\n\n    for account in accounts:\n        name, first = account[0], account[1]\n        for email in account[1:]:\n            parent.setdefault(email, email)\n            owner[email] = name\n            union(first, email)\n\n    groups: dict[str, list[str]] = {}\n    for email in parent:\n        groups.setdefault(find(email), []).append(email)\n    return [[owner[root]] + sorted(emails) for root, emails in groups.items()]\n",
+ "args": [
+  [
+   [
+    "Lu",
+    "a@m",
+    "b@m"
+   ],
+   [
+    "Lu",
+    "c@m",
+    "d@m"
+   ],
+   [
+    "Lu",
+    "b@m",
+    "c@m"
+   ]
+  ]
+ ],
+ "result": "[[\"Lu\", \"a@m\", \"b@m\", \"c@m\", \"d@m\"]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "parent": "{}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{}",
+    "parent": "{}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{}",
+    "parent": "{}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{}",
+    "parent": "{}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "parent": "{}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "parent": "{}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'a@m'",
+    "parent": "{}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu'}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'a@m'",
+    "b": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'a@m'",
+    "b": "'a@m'",
+    "ra": "'a@m'",
+    "rb": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'a@m'",
+    "b": "'a@m'",
+    "ra": "'a@m'",
+    "rb": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu'}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'a@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu'}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu'}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu'}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'a@m'",
+    "b": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   },
+   "ret": "'b@m'"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'a@m'",
+    "b": "'b@m'",
+    "ra": "'a@m'",
+    "rb": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'a@m'",
+    "b": "'b@m'",
+    "ra": "'a@m'",
+    "rb": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'b@m'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'a@m'",
+    "b": "'b@m'",
+    "ra": "'a@m'",
+    "rb": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu'}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu'}",
+    "account": "['Lu', 'a@m', 'b@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'a@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'c@m'",
+    "b": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   },
+   "ret": "'c@m'"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   },
+   "ret": "'c@m'"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'c@m'",
+    "b": "'c@m'",
+    "ra": "'c@m'",
+    "rb": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'c@m'",
+    "b": "'c@m'",
+    "ra": "'c@m'",
+    "rb": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'c@m'",
+    "b": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   },
+   "ret": "'c@m'"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   },
+   "ret": "'d@m'"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'c@m'",
+    "b": "'d@m'",
+    "ra": "'c@m'",
+    "rb": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'c@m'",
+    "b": "'d@m'",
+    "ra": "'c@m'",
+    "rb": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'd@m'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'c@m'",
+    "b": "'d@m'",
+    "ra": "'c@m'",
+    "rb": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'c@m', 'd@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'c@m'",
+    "email": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'b@m'",
+    "b": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'b@m'",
+    "b": "'b@m'",
+    "ra": "'a@m'",
+    "rb": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'b@m'",
+    "b": "'b@m'",
+    "ra": "'a@m'",
+    "rb": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'b@m'",
+    "b": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "union",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   },
+   "ret": "'c@m'"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'b@m'",
+    "b": "'c@m'",
+    "ra": "'a@m'",
+    "rb": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'b@m'",
+    "b": "'c@m'",
+    "ra": "'a@m'",
+    "rb": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'c@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "accounts_merge",
+    "union"
+   ],
+   "vars": {
+    "a": "'b@m'",
+    "b": "'c@m'",
+    "ra": "'a@m'",
+    "rb": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'c@m'",
+    "groups": "{}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'a@m'",
+    "groups": "{}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 24,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'a@m'",
+    "groups": "{'a@m': ['a@m']}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'b@m'",
+    "groups": "{'a@m': ['a@m']}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'b@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 24,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'b@m'",
+    "groups": "{'a@m': ['a@m', 'b@m']}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'c@m'",
+    "groups": "{'a@m': ['a@m', 'b@m']}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'c@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 24,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'c@m'",
+    "groups": "{'a@m': ['a@m', 'b@m', 'c@m']}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'d@m'",
+    "groups": "{'a@m': ['a@m', 'b@m', 'c@m']}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'c@m'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'d@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "accounts_merge",
+    "find"
+   ],
+   "vars": {
+    "x": "'a@m'",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'a@m'}"
+   },
+   "ret": "'a@m'"
+  },
+  {
+   "line": 24,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'d@m'",
+    "groups": "{'a@m': ['a@m', 'b@m', 'c@m', 'd@m']}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'d@m'",
+    "groups": "{'a@m': ['a@m', 'b@m', 'c@m', 'd@m']}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'d@m'",
+    "groups": "{'a@m': ['a@m', 'b@m', 'c@m', 'd@m']}",
+    "root": "'a@m'",
+    "emails": "['a@m', 'b@m', 'c@m', 'd@m']",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'a@m'}"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "accounts_merge"
+   ],
+   "vars": {
+    "accounts": "[['Lu', 'a@m', 'b@m'], ['Lu', 'c@m', 'd@m'], ['Lu', 'b@m', 'c@m']]",
+    "owner": "{'a@m': 'Lu', 'b@m': 'Lu', 'c@m': 'Lu', 'd@m': 'Lu'}",
+    "account": "['Lu', 'b@m', 'c@m']",
+    "name": "'Lu'",
+    "first": "'b@m'",
+    "email": "'d@m'",
+    "groups": "{'a@m': ['a@m', 'b@m', 'c@m', 'd@m']}",
+    "parent": "{'a@m': 'a@m', 'b@m': 'a@m', 'c@m': 'a@m', 'd@m': 'a@m'}"
+   },
+   "ret": "[['Lu', 'a@m', 'b@m', 'c@m', 'd@m']]"
+  }
+ ]
+}

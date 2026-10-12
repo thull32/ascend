@@ -1,0 +1,853 @@
+{
+ "problem": "design-hashmap",
+ "block": 1,
+ "version": 2,
+ "source": "60e40f796adb4d56",
+ "code": "class MyHashMap:\n    def __init__(self):\n        self.capacity = 16\n        self.size = 0\n        self.buckets: list[list[list[int]]] = [[] for _ in range(self.capacity)]\n\n    def _index(self, key: int) -> int:\n        return key % self.capacity\n\n    def put(self, key: int, value: int) -> None:\n        bucket = self.buckets[self._index(key)]\n        for pair in bucket:\n            if pair[0] == key:\n                pair[1] = value\n                return\n        bucket.append([key, value])\n        self.size += 1\n        if self.size > self.capacity * 3 // 4:\n            self._resize()\n\n    def get(self, key: int) -> int:\n        for k, v in self.buckets[self._index(key)]:\n            if k == key:\n                return v\n        return -1\n\n    def remove(self, key: int) -> None:\n        bucket = self.buckets[self._index(key)]\n        for i, pair in enumerate(bucket):\n            if pair[0] == key:\n                bucket[i] = bucket[-1]\n                bucket.pop()\n                self.size -= 1\n                return\n\n    def _resize(self) -> None:\n        old = self.buckets\n        self.capacity *= 2\n        self.buckets = [[] for _ in range(self.capacity)]\n        for bucket in old:\n            for key, value in bucket:\n                self.buckets[self._index(key)].append([key, value])\n",
+ "args": [
+  [
+   "put",
+   1,
+   10
+  ],
+  [
+   "put",
+   17,
+   20
+  ],
+  [
+   "get",
+   17
+  ],
+  [
+   "remove",
+   1
+  ],
+  [
+   "get",
+   1
+  ]
+ ],
+ "result": "[null, null, 20, null, -1]",
+ "frames": [
+  {
+   "line": 3,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 4,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "7"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "8"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "9"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "10"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "11"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "12"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "13"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "14"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "_": "15"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "self.buckets": "[[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "self.buckets": "[[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "value": "10"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "put",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "self.buckets": "[[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "put",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "self.buckets": "[[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "self.buckets": "[[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "value": "10",
+    "bucket": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "self.buckets": "[[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "value": "10",
+    "bucket": "[]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "0",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "value": "10",
+    "bucket": "[[1, 10]]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "value": "10",
+    "bucket": "[[1, 10]]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "value": "10",
+    "bucket": "[[1, 10]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "value": "20"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "put",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "put",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "value": "20",
+    "bucket": "[[1, 10]]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "value": "20",
+    "bucket": "[[1, 10]]",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "value": "20",
+    "bucket": "[[1, 10]]",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "value": "20",
+    "bucket": "[[1, 10]]",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "value": "20",
+    "bucket": "[[1, 10], [17, 20]]",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "value": "20",
+    "bucket": "[[1, 10], [17, 20]]",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "value": "20",
+    "bucket": "[[1, 10], [17, 20]]",
+    "pair": "[1, 10]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 22,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 23,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "k": "1",
+    "v": "10"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "k": "1",
+    "v": "10"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "k": "17",
+    "v": "20"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "k": "17",
+    "v": "20"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "17",
+    "k": "17",
+    "v": "20"
+   },
+   "ret": "20"
+  },
+  {
+   "line": 28,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "remove",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "remove",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 29,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "bucket": "[[1, 10], [17, 20]]"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "bucket": "[[1, 10], [17, 20]]",
+    "i": "0",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[1, 10], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "bucket": "[[1, 10], [17, 20]]",
+    "i": "0",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[17, 20], [17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "bucket": "[[17, 20], [17, 20]]",
+    "i": "0",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "2",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "bucket": "[[17, 20]]",
+    "i": "0",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "bucket": "[[17, 20]]",
+    "i": "0",
+    "pair": "[1, 10]"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "bucket": "[[17, 20]]",
+    "i": "0",
+    "pair": "[1, 10]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 22,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get",
+    "_index"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 23,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "k": "17",
+    "v": "20"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "k": "17",
+    "v": "20"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "k": "17",
+    "v": "20"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.capacity": "16",
+    "self.size": "1",
+    "self.buckets": "[[], [[17, 20]], [], [], [], [], [], [], [], [], [], [], [], [], [], []]",
+    "key": "1",
+    "k": "17",
+    "v": "20"
+   },
+   "ret": "-1"
+  }
+ ]
+}

@@ -1,0 +1,1041 @@
+{
+ "problem": "minimum-window-substring",
+ "block": 1,
+ "version": 2,
+ "source": "01b6a81e32ce6628",
+ "code": "def min_window(s: str, t: str) -> str:\n    if not s or not t:\n        return \"\"\n    need: dict[str, int] = {}\n    for ch in t:\n        need[ch] = need.get(ch, 0) + 1\n    required = len(need)\n\n    have: dict[str, int] = {}\n    formed = 0\n    best_len = float(\"inf\")\n    best_lo = 0\n    left = 0\n\n    for right, ch in enumerate(s):\n        have[ch] = have.get(ch, 0) + 1\n        if ch in need and have[ch] == need[ch]:\n            formed += 1\n\n        while formed == required:\n            if right - left + 1 < best_len:\n                best_len = right - left + 1\n                best_lo = left\n            out = s[left]\n            have[out] -= 1\n            if out in need and have[out] < need[out]:\n                formed -= 1\n            left += 1\n\n    return \"\" if best_len == float(\"inf\") else s[best_lo:best_lo + best_len]\n",
+ "args": [
+  "AABCB",
+  "ABC"
+ ],
+ "result": "\"ABC\"",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{}",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1}",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1}",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1}",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1}",
+    "ch": "'C'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{}",
+    "formed": "0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{}",
+    "formed": "0",
+    "best_len": "inf"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{}",
+    "formed": "0",
+    "best_len": "inf",
+    "best_lo": "0"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{}",
+    "formed": "0",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'A'",
+    "required": "3",
+    "have": "{}",
+    "formed": "0",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "0"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'A'",
+    "required": "3",
+    "have": "{'A': 1}",
+    "formed": "0",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "0"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'A'",
+    "required": "3",
+    "have": "{'A': 1}",
+    "formed": "0",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "0"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'A'",
+    "required": "3",
+    "have": "{'A': 1}",
+    "formed": "1",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "0"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'A'",
+    "required": "3",
+    "have": "{'A': 1}",
+    "formed": "1",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "0"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'A'",
+    "required": "3",
+    "have": "{'A': 1}",
+    "formed": "1",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'A'",
+    "required": "3",
+    "have": "{'A': 2}",
+    "formed": "1",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "1"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'A'",
+    "required": "3",
+    "have": "{'A': 2}",
+    "formed": "1",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'A'",
+    "required": "3",
+    "have": "{'A': 2}",
+    "formed": "1",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 2}",
+    "formed": "1",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1}",
+    "formed": "1",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "2"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1}",
+    "formed": "1",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "2"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1}",
+    "formed": "2",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1}",
+    "formed": "2",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1}",
+    "formed": "2",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1, 'C': 1}",
+    "formed": "2",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1, 'C': 1}",
+    "formed": "2",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "inf",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "4",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "4",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 2, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "4",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 1, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "4",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 1, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "4",
+    "best_lo": "0",
+    "left": "0",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 1, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "4",
+    "best_lo": "0",
+    "left": "1",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 1, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "4",
+    "best_lo": "0",
+    "left": "1",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 1, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "4",
+    "best_lo": "0",
+    "left": "1",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 1, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "3",
+    "best_lo": "0",
+    "left": "1",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 1, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "1",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 1, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "1",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "1",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 1, 'C': 1}",
+    "formed": "3",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "1",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 1, 'C': 1}",
+    "formed": "2",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "1",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 1, 'C': 1}",
+    "formed": "2",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "2",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'C'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 1, 'C': 1}",
+    "formed": "2",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "2",
+    "right": "3",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 1, 'C': 1}",
+    "formed": "2",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "2",
+    "right": "4",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 2, 'C': 1}",
+    "formed": "2",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "2",
+    "right": "4",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 2, 'C': 1}",
+    "formed": "2",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "2",
+    "right": "4",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 2, 'C': 1}",
+    "formed": "2",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "2",
+    "right": "4",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 2, 'C': 1}",
+    "formed": "2",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "2",
+    "right": "4",
+    "out": "'A'"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "min_window"
+   ],
+   "vars": {
+    "s": "'AABCB'",
+    "t": "'ABC'",
+    "need": "{'A': 1, 'B': 1, 'C': 1}",
+    "ch": "'B'",
+    "required": "3",
+    "have": "{'A': 0, 'B': 2, 'C': 1}",
+    "formed": "2",
+    "best_len": "3",
+    "best_lo": "1",
+    "left": "2",
+    "right": "4",
+    "out": "'A'"
+   },
+   "ret": "'ABC'"
+  }
+ ]
+}

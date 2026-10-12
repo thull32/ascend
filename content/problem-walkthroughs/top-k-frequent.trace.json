@@ -1,0 +1,680 @@
+{
+ "problem": "top-k-frequent",
+ "block": 1,
+ "version": 2,
+ "source": "d29c76c1fa4d1057",
+ "code": "def top_k_frequent(nums: list[int], k: int) -> list[int]:\n    counts: dict[int, int] = {}\n    for x in nums:\n        counts[x] = counts.get(x, 0) + 1\n\n    buckets: list[list[int]] = [[] for _ in range(len(nums) + 1)]\n    for value, freq in counts.items():\n        buckets[freq].append(value)\n\n    out: list[int] = []\n    for freq in range(len(nums), 0, -1):\n        for value in buckets[freq]:\n            out.append(value)\n            if len(out) == k:\n                return out\n    return out\n",
+ "args": [
+  [
+   1,
+   1,
+   1,
+   2,
+   2,
+   3
+  ],
+  2
+ ],
+ "result": "[1, 2]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{}",
+    "x": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 1}",
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 1}",
+    "x": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 2}",
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 2}",
+    "x": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3}",
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3}",
+    "x": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 1}",
+    "x": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 1}",
+    "x": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2}",
+    "x": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2}",
+    "x": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "_": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "_": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "_": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "_": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "_": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "_": "5"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "_": "6"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [], [], [], [], [], []]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [], [], [], [], [], []]",
+    "value": "1",
+    "freq": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [], [], [1], [], [], []]",
+    "value": "1",
+    "freq": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [], [], [1], [], [], []]",
+    "value": "2",
+    "freq": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [], [2], [1], [], [], []]",
+    "value": "2",
+    "freq": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "1",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "6",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "6",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "5",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "5",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "4",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "4",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "3",
+    "freq": "3",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "1",
+    "freq": "3",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "1",
+    "freq": "3",
+    "out": "[1]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "1",
+    "freq": "3",
+    "out": "[1]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "1",
+    "freq": "3",
+    "out": "[1]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "1",
+    "freq": "2",
+    "out": "[1]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "2",
+    "freq": "2",
+    "out": "[1]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "2",
+    "freq": "2",
+    "out": "[1, 2]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "2",
+    "freq": "2",
+    "out": "[1, 2]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "top_k_frequent"
+   ],
+   "vars": {
+    "nums": "[1, 1, 1, 2, 2, 3]",
+    "k": "2",
+    "counts": "{1: 3, 2: 2, 3: 1}",
+    "x": "3",
+    "buckets": "[[], [3], [2], [1], [], [], []]",
+    "value": "2",
+    "freq": "2",
+    "out": "[1, 2]"
+   },
+   "ret": "[1, 2]"
+  }
+ ]
+}

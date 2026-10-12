@@ -1,0 +1,185 @@
+{
+ "problem": "min-cost-climbing-stairs",
+ "block": 2,
+ "version": 2,
+ "source": "bb249a1df2401a14",
+ "code": "def min_cost_climbing_stairs(cost: list[int]) -> int:\n    two_back, one_back = 0, 0          # best[i - 2], best[i - 1]\n    for i in range(2, len(cost) + 1):\n        two_back, one_back = one_back, min(one_back + cost[i - 1], two_back + cost[i - 2])\n    return one_back\n",
+ "args": [
+  [
+   3,
+   8,
+   1,
+   1,
+   9,
+   2
+  ]
+ ],
+ "result": "7",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "0",
+    "one_back": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "0",
+    "one_back": "0",
+    "i": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "0",
+    "one_back": "3",
+    "i": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "0",
+    "one_back": "3",
+    "i": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "3",
+    "one_back": "4",
+    "i": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "3",
+    "one_back": "4",
+    "i": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "4",
+    "one_back": "4",
+    "i": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "4",
+    "one_back": "4",
+    "i": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "4",
+    "one_back": "5",
+    "i": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "4",
+    "one_back": "5",
+    "i": "6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "5",
+    "one_back": "7",
+    "i": "6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "5",
+    "one_back": "7",
+    "i": "6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_cost_climbing_stairs"
+   ],
+   "vars": {
+    "cost": "[3, 8, 1, 1, 9, 2]",
+    "two_back": "5",
+    "one_back": "7",
+    "i": "6"
+   },
+   "ret": "7"
+  }
+ ]
+}

@@ -1,0 +1,558 @@
+{
+ "problem": "course-schedule",
+ "block": 1,
+ "version": 2,
+ "source": "a43e3b27159dea13",
+ "code": "from collections import deque\n\ndef can_finish(num_courses: int, prerequisites: list[list[int]]) -> bool:\n    unlocks: list[list[int]] = [[] for _ in range(num_courses)]\n    indegree = [0] * num_courses\n    for course, pre in prerequisites:\n        unlocks[pre].append(course)\n        indegree[course] += 1\n\n    ready = deque(c for c in range(num_courses) if indegree[c] == 0)\n    taken = 0\n    while ready:\n        c = ready.popleft()\n        taken += 1\n        for nxt in unlocks[c]:\n            indegree[nxt] -= 1\n            if indegree[nxt] == 0:\n                ready.append(nxt)\n    return taken == num_courses\n",
+ "args": [
+  4,
+  [
+   [
+    1,
+    0
+   ],
+   [
+    2,
+    1
+   ],
+   [
+    3,
+    2
+   ],
+   [
+    1,
+    3
+   ]
+  ]
+ ],
+ "result": "false",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "_": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "_": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "_": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "_": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[], [], [], []]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[], [], [], []]",
+    "indegree": "[0, 0, 0, 0]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[], [], [], []]",
+    "course": "1",
+    "pre": "0",
+    "indegree": "[0, 0, 0, 0]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [], [], []]",
+    "course": "1",
+    "pre": "0",
+    "indegree": "[0, 0, 0, 0]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [], [], []]",
+    "course": "1",
+    "pre": "0",
+    "indegree": "[0, 1, 0, 0]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [], [], []]",
+    "course": "2",
+    "pre": "1",
+    "indegree": "[0, 1, 0, 0]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [], []]",
+    "course": "2",
+    "pre": "1",
+    "indegree": "[0, 1, 0, 0]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [], []]",
+    "course": "2",
+    "pre": "1",
+    "indegree": "[0, 1, 1, 0]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [], []]",
+    "course": "3",
+    "pre": "2",
+    "indegree": "[0, 1, 1, 0]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], []]",
+    "course": "3",
+    "pre": "2",
+    "indegree": "[0, 1, 1, 0]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], []]",
+    "course": "3",
+    "pre": "2",
+    "indegree": "[0, 1, 1, 1]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], []]",
+    "course": "1",
+    "pre": "3",
+    "indegree": "[0, 1, 1, 1]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "indegree": "[0, 1, 1, 1]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_finish",
+    "<genexpr>"
+   ],
+   "vars": {
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_finish",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "0",
+    "indegree": "[0, 2, 1, 1]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_finish",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "0",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_finish",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "1",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_finish",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "2",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_finish",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "3",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_finish",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "3",
+    "indegree": "[0, 2, 1, 1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([0])",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([0])",
+    "taken": "0",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([0])",
+    "taken": "0",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([])",
+    "taken": "0",
+    "c": "0",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([])",
+    "taken": "1",
+    "c": "0",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([])",
+    "taken": "1",
+    "c": "0",
+    "nxt": "1",
+    "indegree": "[0, 2, 1, 1]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([])",
+    "taken": "1",
+    "c": "0",
+    "nxt": "1",
+    "indegree": "[0, 1, 1, 1]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([])",
+    "taken": "1",
+    "c": "0",
+    "nxt": "1",
+    "indegree": "[0, 1, 1, 1]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([])",
+    "taken": "1",
+    "c": "0",
+    "nxt": "1",
+    "indegree": "[0, 1, 1, 1]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([])",
+    "taken": "1",
+    "c": "0",
+    "nxt": "1",
+    "indegree": "[0, 1, 1, 1]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "can_finish"
+   ],
+   "vars": {
+    "num_courses": "4",
+    "prerequisites": "[[1, 0], [2, 1], [3, 2], [1, 3]]",
+    "unlocks": "[[1], [2], [3], [1]]",
+    "course": "1",
+    "pre": "3",
+    "ready": "deque([])",
+    "taken": "1",
+    "c": "0",
+    "nxt": "1",
+    "indegree": "[0, 1, 1, 1]"
+   },
+   "ret": "False"
+  }
+ ]
+}

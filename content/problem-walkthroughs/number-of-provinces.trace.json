@@ -1,0 +1,981 @@
+{
+ "problem": "number-of-provinces",
+ "block": 1,
+ "version": 2,
+ "source": "15074f151e4ed79f",
+ "code": "def count_provinces(is_connected: list[list[int]]) -> int:\n    n = len(is_connected)\n    parent = list(range(n))\n    size = [1] * n\n\n    def find(x: int) -> int:\n        while parent[x] != x:\n            parent[x] = parent[parent[x]]   # path halving\n            x = parent[x]\n        return x\n\n    count = n\n    for i in range(n):\n        for j in range(i + 1, n):\n            if is_connected[i][j]:\n                ri, rj = find(i), find(j)\n                if ri != rj:\n                    if size[ri] < size[rj]:\n                        ri, rj = rj, ri\n                    parent[rj] = ri\n                    size[ri] += size[rj]\n                    count -= 1\n    return count\n",
+ "args": [
+  [
+   [
+    1,
+    1,
+    1,
+    0
+   ],
+   [
+    1,
+    1,
+    1,
+    0
+   ],
+   [
+    1,
+    1,
+    1,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    1
+   ]
+  ]
+ ],
+ "result": "2",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "count": "4",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "count": "4",
+    "i": "0",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "count": "4",
+    "i": "0",
+    "j": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "count": "4",
+    "i": "0",
+    "j": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 1, 2, 3]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 2, 3]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 17,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "count": "4",
+    "i": "0",
+    "j": "1",
+    "ri": "0",
+    "rj": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "count": "4",
+    "i": "0",
+    "j": "1",
+    "ri": "0",
+    "rj": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "count": "4",
+    "i": "0",
+    "j": "1",
+    "ri": "0",
+    "rj": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[1, 1, 1, 1]",
+    "count": "4",
+    "i": "0",
+    "j": "1",
+    "ri": "0",
+    "rj": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[2, 1, 1, 1]",
+    "count": "4",
+    "i": "0",
+    "j": "1",
+    "ri": "0",
+    "rj": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[2, 1, 1, 1]",
+    "count": "3",
+    "i": "0",
+    "j": "1",
+    "ri": "0",
+    "rj": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[2, 1, 1, 1]",
+    "count": "3",
+    "i": "0",
+    "j": "2",
+    "ri": "0",
+    "rj": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[2, 1, 1, 1]",
+    "count": "3",
+    "i": "0",
+    "j": "2",
+    "ri": "0",
+    "rj": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 2, 3]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 2, 3]"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 17,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[2, 1, 1, 1]",
+    "count": "3",
+    "i": "0",
+    "j": "2",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[2, 1, 1, 1]",
+    "count": "3",
+    "i": "0",
+    "j": "2",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[2, 1, 1, 1]",
+    "count": "3",
+    "i": "0",
+    "j": "2",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[2, 1, 1, 1]",
+    "count": "3",
+    "i": "0",
+    "j": "2",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "3",
+    "i": "0",
+    "j": "2",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "0",
+    "j": "2",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "0",
+    "j": "3",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "0",
+    "j": "3",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "0",
+    "j": "3",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "1",
+    "j": "3",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "1",
+    "j": "2",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "1",
+    "j": "2",
+    "ri": "0",
+    "rj": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "count_provinces",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 17,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "1",
+    "j": "2",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "1",
+    "j": "2",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "1",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "1",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "1",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "2",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "2",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "2",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "2",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "3",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "3",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "3",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "count_provinces"
+   ],
+   "vars": {
+    "is_connected": "[[1, 1, 1, 0], [1, 1, 1, 0], [1, 1, 1, 0], [0, 0, 0, 1]]",
+    "n": "4",
+    "size": "[3, 1, 1, 1]",
+    "count": "2",
+    "i": "3",
+    "j": "3",
+    "ri": "0",
+    "rj": "0",
+    "parent": "[0, 0, 0, 3]"
+   },
+   "ret": "2"
+  }
+ ]
+}

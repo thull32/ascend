@@ -1,0 +1,453 @@
+{
+ "problem": "min-depth",
+ "block": 1,
+ "version": 2,
+ "source": "0553c44f516d8240",
+ "code": "from collections import deque\n\ndef min_depth(root: TreeNode | None) -> int:\n    if root is None:\n        return 0\n    queue = deque([root])\n    depth = 1\n    while queue:\n        for _ in range(len(queue)):\n            node = queue.popleft()\n            if node.left is None and node.right is None:\n                return depth\n            if node.left is not None:\n                queue.append(node.left)\n            if node.right is not None:\n                queue.append(node.right)\n        depth += 1\n    return depth  # unreachable: every non-empty tree has a leaf\n",
+ "args": [
+  {
+   "$tree": [
+    1,
+    2,
+    3,
+    4,
+    null,
+    null,
+    5,
+    null,
+    null,
+    6
+   ]
+  }
+ ],
+ "result": "3",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(1)])"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(1)])",
+    "depth": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(1)])",
+    "depth": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(1)])",
+    "depth": "1",
+    "_": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "depth": "1",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "depth": "1",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "depth": "1",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2)])",
+    "depth": "1",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2)])",
+    "depth": "1",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "depth": "1",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "depth": "1",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "depth": "2",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "depth": "2",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2), TreeNode(3)])",
+    "depth": "2",
+    "_": "0",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(3)])",
+    "depth": "2",
+    "_": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(3)])",
+    "depth": "2",
+    "_": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(3)])",
+    "depth": "2",
+    "_": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(3), TreeNode(4)])",
+    "depth": "2",
+    "_": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(3), TreeNode(4)])",
+    "depth": "2",
+    "_": "0",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(3), TreeNode(4)])",
+    "depth": "2",
+    "_": "1",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(4)])",
+    "depth": "2",
+    "_": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(4)])",
+    "depth": "2",
+    "_": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(4)])",
+    "depth": "2",
+    "_": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(4)])",
+    "depth": "2",
+    "_": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(4), TreeNode(5)])",
+    "depth": "2",
+    "_": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(4), TreeNode(5)])",
+    "depth": "2",
+    "_": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(4), TreeNode(5)])",
+    "depth": "3",
+    "_": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(4), TreeNode(5)])",
+    "depth": "3",
+    "_": "1",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(4), TreeNode(5)])",
+    "depth": "3",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(5)])",
+    "depth": "3",
+    "_": "0",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(5)])",
+    "depth": "3",
+    "_": "0",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(5)])",
+    "depth": "3",
+    "_": "0",
+    "node": "TreeNode(4)"
+   },
+   "ret": "3"
+  }
+ ]
+}

@@ -1,0 +1,1099 @@
+{
+ "problem": "largest-rectangle-histogram",
+ "block": 1,
+ "version": 2,
+ "source": "f24e4a7e9a454aba",
+ "code": "def largest_rectangle(heights: list[int]) -> int:\n    best = 0\n    stack: list[int] = []  # indices, heights non-decreasing bottom to top\n    extended = heights + [0]  # sentinel forces every bar to be resolved\n    for i, h in enumerate(extended):\n        while stack and extended[stack[-1]] > h:\n            top = stack.pop()\n            height = extended[top]\n            left = stack[-1] if stack else -1\n            width = i - left - 1\n            best = max(best, height * width)\n        stack.append(i)\n    return best\n",
+ "args": [
+  [
+   2,
+   1,
+   5,
+   6,
+   2,
+   3
+  ]
+ ],
+ "result": "10",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "0",
+    "h": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "0",
+    "h": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[0]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "0",
+    "h": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[0]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "1",
+    "h": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[0]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "1",
+    "h": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "1",
+    "h": "1",
+    "top": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "1",
+    "h": "1",
+    "top": "0",
+    "height": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "1",
+    "h": "1",
+    "top": "0",
+    "height": "2",
+    "left": "-1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "0",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "1",
+    "h": "1",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "1",
+    "h": "1",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "1",
+    "h": "1",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "1",
+    "h": "1",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "2",
+    "h": "5",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "2",
+    "h": "5",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "2",
+    "h": "5",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "3",
+    "h": "6",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "3",
+    "h": "6",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2, 3]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "3",
+    "h": "6",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2, 3]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2, 3]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "0",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "3",
+    "height": "2",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "3",
+    "height": "6",
+    "left": "-1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "3",
+    "height": "6",
+    "left": "2",
+    "width": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "2",
+    "stack": "[1, 2]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "3",
+    "height": "6",
+    "left": "2",
+    "width": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "6",
+    "stack": "[1, 2]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "3",
+    "height": "6",
+    "left": "2",
+    "width": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "6",
+    "stack": "[1, 2]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "3",
+    "height": "6",
+    "left": "2",
+    "width": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "6",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "2",
+    "height": "6",
+    "left": "2",
+    "width": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "6",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "2",
+    "height": "5",
+    "left": "2",
+    "width": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "6",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "6",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "4",
+    "h": "2",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "5",
+    "h": "3",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "5",
+    "h": "3",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4, 5]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "5",
+    "h": "3",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4, 5]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4, 5]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "2",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "5",
+    "height": "5",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "5",
+    "height": "3",
+    "left": "1",
+    "width": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "5",
+    "height": "3",
+    "left": "4",
+    "width": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "5",
+    "height": "3",
+    "left": "4",
+    "width": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "5",
+    "height": "3",
+    "left": "4",
+    "width": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1, 4]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "5",
+    "height": "3",
+    "left": "4",
+    "width": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "4",
+    "height": "3",
+    "left": "4",
+    "width": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "4",
+    "height": "2",
+    "left": "4",
+    "width": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "4",
+    "height": "2",
+    "left": "1",
+    "width": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "4",
+    "height": "2",
+    "left": "1",
+    "width": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "4",
+    "height": "2",
+    "left": "1",
+    "width": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[1]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "4",
+    "height": "2",
+    "left": "1",
+    "width": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "1",
+    "height": "2",
+    "left": "1",
+    "width": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "1",
+    "height": "1",
+    "left": "1",
+    "width": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "1",
+    "height": "1",
+    "left": "-1",
+    "width": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "1",
+    "height": "1",
+    "left": "-1",
+    "width": "6"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "1",
+    "height": "1",
+    "left": "-1",
+    "width": "6"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "1",
+    "height": "1",
+    "left": "-1",
+    "width": "6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[6]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "1",
+    "height": "1",
+    "left": "-1",
+    "width": "6"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[6]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "1",
+    "height": "1",
+    "left": "-1",
+    "width": "6"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "largest_rectangle"
+   ],
+   "vars": {
+    "heights": "[2, 1, 5, 6, 2, 3]",
+    "best": "10",
+    "stack": "[6]",
+    "extended": "[2, 1, 5, 6, 2, 3, 0]",
+    "i": "6",
+    "h": "0",
+    "top": "1",
+    "height": "1",
+    "left": "-1",
+    "width": "6"
+   },
+   "ret": "10"
+  }
+ ]
+}

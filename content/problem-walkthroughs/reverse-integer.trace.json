@@ -1,0 +1,716 @@
+{
+ "problem": "reverse-integer",
+ "block": 1,
+ "version": 2,
+ "source": "8f6f8a9432061d60",
+ "code": "INT_MAX = 2**31 - 1      #  2147483647\nINT_MIN_MAG = 2**31      #  2147483648, magnitude of -2**31\n\n\ndef reverse(x: int) -> int:\n    negative = x < 0\n    limit = INT_MIN_MAG if negative else INT_MAX\n    x = -x if negative else x    # safe in Python; in C you would widen first\n    result = 0\n    while x:\n        d = x % 10\n        x //= 10\n        # Would result * 10 + d exceed the limit? Check without computing it.\n        if result > (limit - d) // 10:\n            return 0\n        result = result * 10 + d\n    return -result if negative else result\n",
+ "args": [
+  1563847412
+ ],
+ "result": "0",
+ "frames": [
+  {
+   "line": 6,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847412"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847412",
+    "negative": "False"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847412",
+    "negative": "False",
+    "limit": "2147483647"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847412",
+    "negative": "False",
+    "limit": "2147483647"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847412",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847412",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847412",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384741",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384741",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384741",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2",
+    "d": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384741",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2",
+    "d": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384741",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2",
+    "d": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638474",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2",
+    "d": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638474",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2",
+    "d": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638474",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21",
+    "d": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638474",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21",
+    "d": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638474",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21",
+    "d": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21",
+    "d": "4"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21",
+    "d": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214",
+    "d": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214",
+    "d": "4"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563847",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214",
+    "d": "7"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214",
+    "d": "7"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214",
+    "d": "7"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147",
+    "d": "7"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147",
+    "d": "7"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156384",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147",
+    "d": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147",
+    "d": "4"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147",
+    "d": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474",
+    "d": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474",
+    "d": "4"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15638",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474",
+    "d": "8"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474",
+    "d": "8"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474",
+    "d": "8"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748",
+    "d": "8"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748",
+    "d": "8"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1563",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748",
+    "d": "3"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748",
+    "d": "3"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748",
+    "d": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147483",
+    "d": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147483",
+    "d": "3"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "156",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147483",
+    "d": "6"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147483",
+    "d": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "2147483",
+    "d": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474836",
+    "d": "6"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474836",
+    "d": "6"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "15",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474836",
+    "d": "5"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474836",
+    "d": "5"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "21474836",
+    "d": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748365",
+    "d": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748365",
+    "d": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "1",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748365",
+    "d": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "0",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748365",
+    "d": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "0",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748365",
+    "d": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "reverse"
+   ],
+   "vars": {
+    "x": "0",
+    "negative": "False",
+    "limit": "2147483647",
+    "result": "214748365",
+    "d": "1"
+   },
+   "ret": "0"
+  }
+ ]
+}

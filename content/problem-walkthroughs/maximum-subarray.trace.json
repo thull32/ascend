@@ -1,0 +1,282 @@
+{
+ "problem": "maximum-subarray",
+ "block": 1,
+ "version": 2,
+ "source": "5d7071bddd69810f",
+ "code": "def max_subarray(nums: list[int]) -> int:\n    best_here = best = nums[0]\n    for x in nums[1:]:\n        # Extend the current run only if it is still contributing positively.\n        best_here = max(x, best_here + x)\n        best = max(best, best_here)\n    return best\n",
+ "args": [
+  [
+   3,
+   -4,
+   5,
+   -1,
+   2,
+   -6,
+   4
+  ]
+ ],
+ "result": "6",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "3",
+    "best": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "3",
+    "best": "3",
+    "x": "-4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "-1",
+    "best": "3",
+    "x": "-4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "-1",
+    "best": "3",
+    "x": "-4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "-1",
+    "best": "3",
+    "x": "5"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "5",
+    "best": "3",
+    "x": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "5",
+    "best": "5",
+    "x": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "5",
+    "best": "5",
+    "x": "-1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "4",
+    "best": "5",
+    "x": "-1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "4",
+    "best": "5",
+    "x": "-1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "4",
+    "best": "5",
+    "x": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "6",
+    "best": "5",
+    "x": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "6",
+    "best": "6",
+    "x": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "6",
+    "best": "6",
+    "x": "-6"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "0",
+    "best": "6",
+    "x": "-6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "0",
+    "best": "6",
+    "x": "-6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "0",
+    "best": "6",
+    "x": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "4",
+    "best": "6",
+    "x": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "4",
+    "best": "6",
+    "x": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "4",
+    "best": "6",
+    "x": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_subarray"
+   ],
+   "vars": {
+    "nums": "[3, -4, 5, -1, 2, -6, 4]",
+    "best_here": "4",
+    "best": "6",
+    "x": "4"
+   },
+   "ret": "6"
+  }
+ ]
+}

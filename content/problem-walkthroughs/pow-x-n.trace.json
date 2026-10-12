@@ -1,0 +1,310 @@
+{
+ "problem": "pow-x-n",
+ "block": 1,
+ "version": 2,
+ "source": "1988077886c412b4",
+ "code": "def my_pow(x: float, n: int) -> float:\n    if n < 0:\n        # In C or Java, -n overflows for n = -2**31; widen first. Python ints\n        # are arbitrary precision, so this is safe here.\n        x, n = 1.0 / x, -n\n    result = 1.0\n    base = x\n    while n > 0:\n        if n & 1:            # this bit of n is set: include base\n            result *= base\n        base *= base         # x^(2^k) -> x^(2^(k+1))\n        n >>= 1\n    return round(result, 5)\n",
+ "args": [
+  2.0,
+  13
+ ],
+ "result": "8192.0",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "13"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "13"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "13",
+    "result": "1.0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "13",
+    "result": "1.0",
+    "base": "2.0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "13",
+    "result": "1.0",
+    "base": "2.0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "13",
+    "result": "1.0",
+    "base": "2.0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "13",
+    "result": "2.0",
+    "base": "2.0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "13",
+    "result": "2.0",
+    "base": "4.0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "6",
+    "result": "2.0",
+    "base": "4.0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "6",
+    "result": "2.0",
+    "base": "4.0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "6",
+    "result": "2.0",
+    "base": "4.0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "6",
+    "result": "2.0",
+    "base": "16.0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "3",
+    "result": "2.0",
+    "base": "16.0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "3",
+    "result": "2.0",
+    "base": "16.0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "3",
+    "result": "2.0",
+    "base": "16.0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "3",
+    "result": "32.0",
+    "base": "16.0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "3",
+    "result": "32.0",
+    "base": "256.0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "1",
+    "result": "32.0",
+    "base": "256.0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "1",
+    "result": "32.0",
+    "base": "256.0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "1",
+    "result": "32.0",
+    "base": "256.0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "1",
+    "result": "8192.0",
+    "base": "256.0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "1",
+    "result": "8192.0",
+    "base": "65536.0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "0",
+    "result": "8192.0",
+    "base": "65536.0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "0",
+    "result": "8192.0",
+    "base": "65536.0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "my_pow"
+   ],
+   "vars": {
+    "x": "2.0",
+    "n": "0",
+    "result": "8192.0",
+    "base": "65536.0"
+   },
+   "ret": "8192.0"
+  }
+ ]
+}

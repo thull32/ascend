@@ -1,0 +1,222 @@
+{
+ "problem": "lowest-common-ancestor-bst",
+ "block": 1,
+ "version": 2,
+ "source": "140dfefeebfb46c6",
+ "code": "def lowest_common_ancestor(root: TreeNode | None, p: int, q: int) -> int:\n    lo, hi = min(p, q), max(p, q)\n    node = root\n    while node is not None:\n        if hi < node.val:\n            node = node.left\n        elif lo > node.val:\n            node = node.right\n        else:\n            return node.val\n    return -1  # unreachable: p and q are guaranteed to exist\n",
+ "args": [
+  {
+   "$tree": [
+    6,
+    2,
+    8,
+    0,
+    4,
+    7,
+    9,
+    null,
+    null,
+    3,
+    5
+   ]
+  },
+  3,
+  5
+ ],
+ "result": "4",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(6)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(6)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(6)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "lowest_common_ancestor"
+   ],
+   "vars": {
+    "root": "TreeNode(6)",
+    "p": "3",
+    "q": "5",
+    "lo": "3",
+    "hi": "5",
+    "node": "TreeNode(4)"
+   },
+   "ret": "4"
+  }
+ ]
+}

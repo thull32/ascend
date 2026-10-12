@@ -1,0 +1,848 @@
+{
+ "problem": "design-twitter",
+ "block": 1,
+ "version": 2,
+ "source": "923af2a047071f8d",
+ "code": "class Twitter:\n    def __init__(self):\n        self.time = 0\n        self.tweets: dict[int, list[tuple[int, int]]] = collections.defaultdict(list)\n        self.following: dict[int, set[int]] = collections.defaultdict(set)\n\n    def post_tweet(self, user_id: int, tweet_id: int) -> None:\n        self.tweets[user_id].append((self.time, tweet_id))\n        self.time += 1\n\n    def get_news_feed(self, user_id: int) -> list[int]:\n        heap: list[tuple[int, int, int, int]] = []\n        sources = self.following[user_id] | {user_id}\n        for uid in sources:\n            lst = self.tweets.get(uid)\n            if lst:\n                t, tid = lst[-1]\n                heap.append((-t, tid, uid, len(lst) - 1))\n        heapq.heapify(heap)\n        feed: list[int] = []\n        while heap and len(feed) < 10:\n            neg_t, tid, uid, idx = heapq.heappop(heap)\n            feed.append(tid)\n            if idx > 0:\n                t, prev_tid = self.tweets[uid][idx - 1]\n                heapq.heappush(heap, (-t, prev_tid, uid, idx - 1))\n        return feed\n\n    def follow(self, follower_id: int, followee_id: int) -> None:\n        if follower_id != followee_id:\n            self.following[follower_id].add(followee_id)\n\n    def unfollow(self, follower_id: int, followee_id: int) -> None:\n        self.following[follower_id].discard(followee_id)\n",
+ "args": [
+  [
+   "post_tweet",
+   1,
+   5
+  ],
+  [
+   "follow",
+   1,
+   2
+  ],
+  [
+   "post_tweet",
+   2,
+   6
+  ],
+  [
+   "post_tweet",
+   1,
+   7
+  ],
+  [
+   "get_news_feed",
+   1
+  ]
+ ],
+ "result": "[null, null, null, null, [7, 6, 5]]",
+ "frames": [
+  {
+   "line": 3,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 4,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.time": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.time": "0",
+    "self.tweets": "{}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.time": "0",
+    "self.tweets": "{}",
+    "self.following": "{}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "post_tweet"
+   ],
+   "vars": {
+    "self.time": "0",
+    "self.tweets": "{}",
+    "self.following": "{}",
+    "user_id": "1",
+    "tweet_id": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "post_tweet"
+   ],
+   "vars": {
+    "self.time": "0",
+    "self.tweets": "{1: [(0, 5)]}",
+    "self.following": "{}",
+    "user_id": "1",
+    "tweet_id": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "post_tweet"
+   ],
+   "vars": {
+    "self.time": "1",
+    "self.tweets": "{1: [(0, 5)]}",
+    "self.following": "{}",
+    "user_id": "1",
+    "tweet_id": "5"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 30,
+   "stack": [
+    "follow"
+   ],
+   "vars": {
+    "self.time": "1",
+    "self.tweets": "{1: [(0, 5)]}",
+    "self.following": "{}",
+    "follower_id": "1",
+    "followee_id": "2"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "follow"
+   ],
+   "vars": {
+    "self.time": "1",
+    "self.tweets": "{1: [(0, 5)]}",
+    "self.following": "{}",
+    "follower_id": "1",
+    "followee_id": "2"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "follow"
+   ],
+   "vars": {
+    "self.time": "1",
+    "self.tweets": "{1: [(0, 5)]}",
+    "self.following": "{1: {2}}",
+    "follower_id": "1",
+    "followee_id": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "post_tweet"
+   ],
+   "vars": {
+    "self.time": "1",
+    "self.tweets": "{1: [(0, 5)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "2",
+    "tweet_id": "6"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "post_tweet"
+   ],
+   "vars": {
+    "self.time": "1",
+    "self.tweets": "{1: [(0, 5)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "2",
+    "tweet_id": "6"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "post_tweet"
+   ],
+   "vars": {
+    "self.time": "2",
+    "self.tweets": "{1: [(0, 5)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "2",
+    "tweet_id": "6"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "post_tweet"
+   ],
+   "vars": {
+    "self.time": "2",
+    "self.tweets": "{1: [(0, 5)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "tweet_id": "7"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "post_tweet"
+   ],
+   "vars": {
+    "self.time": "2",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "tweet_id": "7"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "post_tweet"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "tweet_id": "7"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}",
+    "uid": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(0, 5), (2, 7)]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(0, 5), (2, 7)]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(0, 5), (2, 7)]",
+    "t": "2",
+    "tid": "7"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1)]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(0, 5), (2, 7)]",
+    "t": "2",
+    "tid": "7"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(0, 5), (2, 7)]",
+    "t": "2",
+    "tid": "7"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "2",
+    "tid": "7"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "2",
+    "tid": "7"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "1",
+    "tid": "6"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1), (-1, 6, 2, 0)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "1",
+    "tid": "6"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1), (-1, 6, 2, 0)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "1",
+    "tid": "6"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1), (-1, 6, 2, 0)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "1",
+    "tid": "6"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1), (-1, 6, 2, 0)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "1",
+    "tid": "6",
+    "feed": "[]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-2, 7, 1, 1), (-1, 6, 2, 0)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "1",
+    "tid": "6",
+    "feed": "[]"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-1, 6, 2, 0)]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "1",
+    "tid": "7",
+    "feed": "[]",
+    "neg_t": "-2",
+    "idx": "1"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-1, 6, 2, 0)]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "1",
+    "tid": "7",
+    "feed": "[7]",
+    "neg_t": "-2",
+    "idx": "1"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-1, 6, 2, 0)]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "1",
+    "tid": "7",
+    "feed": "[7]",
+    "neg_t": "-2",
+    "idx": "1"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-1, 6, 2, 0)]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "7",
+    "feed": "[7]",
+    "neg_t": "-2",
+    "idx": "1",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-1, 6, 2, 0), (0, 5, 1, 0)]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "7",
+    "feed": "[7]",
+    "neg_t": "-2",
+    "idx": "1",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(-1, 6, 2, 0), (0, 5, 1, 0)]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "7",
+    "feed": "[7]",
+    "neg_t": "-2",
+    "idx": "1",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(0, 5, 1, 0)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "6",
+    "feed": "[7]",
+    "neg_t": "-1",
+    "idx": "0",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(0, 5, 1, 0)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "6",
+    "feed": "[7, 6]",
+    "neg_t": "-1",
+    "idx": "0",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(0, 5, 1, 0)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "6",
+    "feed": "[7, 6]",
+    "neg_t": "-1",
+    "idx": "0",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[(0, 5, 1, 0)]",
+    "sources": "{1, 2}",
+    "uid": "2",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "6",
+    "feed": "[7, 6]",
+    "neg_t": "-1",
+    "idx": "0",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "5",
+    "feed": "[7, 6]",
+    "neg_t": "0",
+    "idx": "0",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "5",
+    "feed": "[7, 6, 5]",
+    "neg_t": "0",
+    "idx": "0",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "5",
+    "feed": "[7, 6, 5]",
+    "neg_t": "0",
+    "idx": "0",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "5",
+    "feed": "[7, 6, 5]",
+    "neg_t": "0",
+    "idx": "0",
+    "prev_tid": "5"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "get_news_feed"
+   ],
+   "vars": {
+    "self.time": "3",
+    "self.tweets": "{1: [(0, 5), (2, 7)], 2: [(1, 6)]}",
+    "self.following": "{1: {2}}",
+    "user_id": "1",
+    "heap": "[]",
+    "sources": "{1, 2}",
+    "uid": "1",
+    "lst": "[(1, 6)]",
+    "t": "0",
+    "tid": "5",
+    "feed": "[7, 6, 5]",
+    "neg_t": "0",
+    "idx": "0",
+    "prev_tid": "5"
+   },
+   "ret": "[7, 6, 5]"
+  }
+ ]
+}

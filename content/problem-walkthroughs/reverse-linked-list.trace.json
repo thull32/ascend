@@ -1,0 +1,253 @@
+{
+ "problem": "reverse-linked-list",
+ "block": 1,
+ "version": 2,
+ "source": "14ef385668e3161b",
+ "code": "def reverse_list(head: ListNode | None) -> ListNode | None:\n    prev = None\n    cur = head\n    while cur is not None:\n        nxt = cur.next      # save before overwriting\n        cur.next = prev     # flip the arrow\n        prev = cur          # advance the reversed prefix\n        cur = nxt           # advance into the unreversed suffix\n    return prev\n",
+ "args": [
+  {
+   "$list": [
+    1,
+    2,
+    3
+   ]
+  }
+ ],
+ "result": "{\"$list\": [3, 2, 1]}",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3",
+    "prev": "None"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3",
+    "prev": "None",
+    "cur": "1 → 2 → 3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3",
+    "prev": "None",
+    "cur": "1 → 2 → 3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3",
+    "prev": "None",
+    "cur": "1 → 2 → 3",
+    "nxt": "2 → 3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "None",
+    "cur": "1",
+    "nxt": "2 → 3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "1",
+    "cur": "1",
+    "nxt": "2 → 3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "1",
+    "cur": "2 → 3",
+    "nxt": "2 → 3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "1",
+    "cur": "2 → 3",
+    "nxt": "2 → 3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "1",
+    "cur": "2 → 3",
+    "nxt": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "1",
+    "cur": "2 → 1",
+    "nxt": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "2 → 1",
+    "cur": "2 → 1",
+    "nxt": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "2 → 1",
+    "cur": "3",
+    "nxt": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "2 → 1",
+    "cur": "3",
+    "nxt": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "2 → 1",
+    "cur": "3",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "2 → 1",
+    "cur": "3 → 2 → 1",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "3 → 2 → 1",
+    "cur": "3 → 2 → 1",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "3 → 2 → 1",
+    "cur": "None",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "3 → 2 → 1",
+    "cur": "None",
+    "nxt": "None"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_list"
+   ],
+   "vars": {
+    "head": "1",
+    "prev": "3 → 2 → 1",
+    "cur": "None",
+    "nxt": "None"
+   },
+   "ret": "3 → 2 → 1"
+  }
+ ]
+}

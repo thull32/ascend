@@ -1,0 +1,400 @@
+{
+ "problem": "longest-increasing-subsequence",
+ "block": 2,
+ "version": 2,
+ "source": "58225077318b10c1",
+ "code": "import bisect\n\ndef length_of_lis(nums: list[int]) -> int:\n    tails: list[int] = []\n    for x in nums:\n        pos = bisect.bisect_left(tails, x)     # first tail >= x\n        if pos == len(tails):\n            tails.append(x)\n        else:\n            tails[pos] = x\n    return len(tails)\n",
+ "args": [
+  [
+   3,
+   1,
+   8,
+   2,
+   5,
+   9,
+   4
+  ]
+ ],
+ "result": "4",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[]",
+    "x": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[]",
+    "x": "3",
+    "pos": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[]",
+    "x": "3",
+    "pos": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[3]",
+    "x": "3",
+    "pos": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[3]",
+    "x": "1",
+    "pos": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[3]",
+    "x": "1",
+    "pos": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[3]",
+    "x": "1",
+    "pos": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1]",
+    "x": "1",
+    "pos": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1]",
+    "x": "8",
+    "pos": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1]",
+    "x": "8",
+    "pos": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1]",
+    "x": "8",
+    "pos": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 8]",
+    "x": "8",
+    "pos": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 8]",
+    "x": "2",
+    "pos": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 8]",
+    "x": "2",
+    "pos": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 8]",
+    "x": "2",
+    "pos": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2]",
+    "x": "2",
+    "pos": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2]",
+    "x": "5",
+    "pos": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2]",
+    "x": "5",
+    "pos": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2]",
+    "x": "5",
+    "pos": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 5]",
+    "x": "5",
+    "pos": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 5]",
+    "x": "9",
+    "pos": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 5]",
+    "x": "9",
+    "pos": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 5]",
+    "x": "9",
+    "pos": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 5, 9]",
+    "x": "9",
+    "pos": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 5, 9]",
+    "x": "4",
+    "pos": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 5, 9]",
+    "x": "4",
+    "pos": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 5, 9]",
+    "x": "4",
+    "pos": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 4, 9]",
+    "x": "4",
+    "pos": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 4, 9]",
+    "x": "4",
+    "pos": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "length_of_lis"
+   ],
+   "vars": {
+    "nums": "[3, 1, 8, 2, 5, 9, 4]",
+    "tails": "[1, 2, 4, 9]",
+    "x": "4",
+    "pos": "2"
+   },
+   "ret": "4"
+  }
+ ]
+}

@@ -1,0 +1,354 @@
+{
+ "problem": "evaluate-rpn",
+ "block": 1,
+ "version": 2,
+ "source": "12099fdd9f3a5a3e",
+ "code": "def eval_rpn(tokens: list[str]) -> int:\n    stack: list[int] = []\n    for tok in tokens:\n        if tok in (\"+\", \"-\", \"*\", \"/\"):\n            b = stack.pop()\n            a = stack.pop()\n            if tok == \"+\":\n                stack.append(a + b)\n            elif tok == \"-\":\n                stack.append(a - b)\n            elif tok == \"*\":\n                stack.append(a * b)\n            else:\n                stack.append(int(a / b))  # truncates toward zero\n        else:\n            stack.append(int(tok))\n    return stack[-1]\n",
+ "args": [
+  [
+   "4",
+   "-7",
+   "2",
+   "/",
+   "-"
+  ]
+ ],
+ "result": "7",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[]",
+    "tok": "'4'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[]",
+    "tok": "'4'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4]",
+    "tok": "'4'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4]",
+    "tok": "'-7'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4]",
+    "tok": "'-7'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -7]",
+    "tok": "'-7'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -7]",
+    "tok": "'2'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -7]",
+    "tok": "'2'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -7, 2]",
+    "tok": "'2'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -7, 2]",
+    "tok": "'/'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -7, 2]",
+    "tok": "'/'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -7]",
+    "tok": "'/'",
+    "b": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4]",
+    "tok": "'/'",
+    "b": "2",
+    "a": "-7"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4]",
+    "tok": "'/'",
+    "b": "2",
+    "a": "-7"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4]",
+    "tok": "'/'",
+    "b": "2",
+    "a": "-7"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4]",
+    "tok": "'/'",
+    "b": "2",
+    "a": "-7"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -3]",
+    "tok": "'/'",
+    "b": "2",
+    "a": "-7"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -3]",
+    "tok": "'-'",
+    "b": "2",
+    "a": "-7"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4, -3]",
+    "tok": "'-'",
+    "b": "2",
+    "a": "-7"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[4]",
+    "tok": "'-'",
+    "b": "-3",
+    "a": "-7"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[]",
+    "tok": "'-'",
+    "b": "-3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[]",
+    "tok": "'-'",
+    "b": "-3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[]",
+    "tok": "'-'",
+    "b": "-3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[7]",
+    "tok": "'-'",
+    "b": "-3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[7]",
+    "tok": "'-'",
+    "b": "-3",
+    "a": "4"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "eval_rpn"
+   ],
+   "vars": {
+    "tokens": "['4', '-7', '2', '/', '-']",
+    "stack": "[7]",
+    "tok": "'-'",
+    "b": "-3",
+    "a": "4"
+   },
+   "ret": "7"
+  }
+ ]
+}

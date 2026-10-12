@@ -1,0 +1,493 @@
+{
+ "problem": "insert-delete-getrandom",
+ "block": 1,
+ "version": 2,
+ "source": "6956dda5328df198",
+ "code": "import random\n\n\nclass RandomizedSet:\n    def __init__(self):\n        self.values: list[int] = []\n        self.index: dict[int, int] = {}\n\n    def insert(self, val: int) -> bool:\n        if val in self.index:\n            return False\n        self.index[val] = len(self.values)\n        self.values.append(val)\n        return True\n\n    def remove(self, val: int) -> bool:\n        i = self.index.get(val)\n        if i is None:\n            return False\n        last = self.values[-1]\n        self.values[i] = last\n        self.index[last] = i\n        self.values.pop()\n        del self.index[val]\n        return True\n\n    def get_random(self) -> int:\n        return random.choice(self.values)\n\n    def get_random_is_member(self) -> bool:\n        return self.get_random() in self.index\n",
+ "args": [
+  [
+   "insert",
+   10
+  ],
+  [
+   "insert",
+   20
+  ],
+  [
+   "insert",
+   30
+  ],
+  [
+   "insert",
+   20
+  ],
+  [
+   "remove",
+   10
+  ],
+  [
+   "remove",
+   30
+  ]
+ ],
+ "result": "[true, true, true, false, true, true]",
+ "frames": [
+  {
+   "line": 6,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 7,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.values": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.values": "[]",
+    "self.index": "{}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[]",
+    "self.index": "{}",
+    "val": "10"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[]",
+    "self.index": "{}",
+    "val": "10"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[]",
+    "self.index": "{10: 0}",
+    "val": "10"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10]",
+    "self.index": "{10: 0}",
+    "val": "10"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10]",
+    "self.index": "{10: 0}",
+    "val": "10"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10]",
+    "self.index": "{10: 0}",
+    "val": "20"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10]",
+    "self.index": "{10: 0}",
+    "val": "20"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10]",
+    "self.index": "{10: 0, 20: 1}",
+    "val": "20"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20]",
+    "self.index": "{10: 0, 20: 1}",
+    "val": "20"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20]",
+    "self.index": "{10: 0, 20: 1}",
+    "val": "20"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20]",
+    "self.index": "{10: 0, 20: 1}",
+    "val": "30"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20]",
+    "self.index": "{10: 0, 20: 1}",
+    "val": "30"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "30"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "30"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "30"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "20"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "20"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.values": "[10, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "20"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 17,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[10, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "10"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[10, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "10",
+    "i": "0"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[10, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "10",
+    "i": "0"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[10, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "10",
+    "i": "0",
+    "last": "30"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[30, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 2}",
+    "val": "10",
+    "i": "0",
+    "last": "30"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[30, 20, 30]",
+    "self.index": "{10: 0, 20: 1, 30: 0}",
+    "val": "10",
+    "i": "0",
+    "last": "30"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[30, 20]",
+    "self.index": "{10: 0, 20: 1, 30: 0}",
+    "val": "10",
+    "i": "0",
+    "last": "30"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[30, 20]",
+    "self.index": "{20: 1, 30: 0}",
+    "val": "10",
+    "i": "0",
+    "last": "30"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[30, 20]",
+    "self.index": "{20: 1, 30: 0}",
+    "val": "10",
+    "i": "0",
+    "last": "30"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 17,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[30, 20]",
+    "self.index": "{20: 1, 30: 0}",
+    "val": "30"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[30, 20]",
+    "self.index": "{20: 1, 30: 0}",
+    "val": "30",
+    "i": "0"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[30, 20]",
+    "self.index": "{20: 1, 30: 0}",
+    "val": "30",
+    "i": "0"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[30, 20]",
+    "self.index": "{20: 1, 30: 0}",
+    "val": "30",
+    "i": "0",
+    "last": "20"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[20, 20]",
+    "self.index": "{20: 1, 30: 0}",
+    "val": "30",
+    "i": "0",
+    "last": "20"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[20, 20]",
+    "self.index": "{20: 0, 30: 0}",
+    "val": "30",
+    "i": "0",
+    "last": "20"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[20]",
+    "self.index": "{20: 0, 30: 0}",
+    "val": "30",
+    "i": "0",
+    "last": "20"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[20]",
+    "self.index": "{20: 0}",
+    "val": "30",
+    "i": "0",
+    "last": "20"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "remove"
+   ],
+   "vars": {
+    "self.values": "[20]",
+    "self.index": "{20: 0}",
+    "val": "30",
+    "i": "0",
+    "last": "20"
+   },
+   "ret": "True"
+  }
+ ]
+}

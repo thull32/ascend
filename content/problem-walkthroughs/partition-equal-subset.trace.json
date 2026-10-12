@@ -1,0 +1,895 @@
+{
+ "problem": "partition-equal-subset",
+ "block": 2,
+ "version": 2,
+ "source": "9ebf12cb24368d2b",
+ "code": "def can_partition(nums: list[int]) -> bool:\n    total = sum(nums)\n    if total % 2:\n        return False\n    target = total // 2\n    reach = [False] * (target + 1)\n    reach[0] = True\n    for x in nums:\n        for s in range(target, x - 1, -1):     # downwards: each item used at most once\n            if reach[s - x]:\n                reach[s] = True\n        if reach[target]:\n            return True                        # early exit\n    return reach[target]\n",
+ "args": [
+  [
+   3,
+   1,
+   4,
+   2,
+   2
+  ]
+ ],
+ "result": "true",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[False, False, False, False, False, False, False]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]",
+    "x": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]",
+    "x": "3",
+    "s": "6"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]",
+    "x": "3",
+    "s": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]",
+    "x": "3",
+    "s": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]",
+    "x": "3",
+    "s": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]",
+    "x": "3",
+    "s": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]",
+    "x": "3",
+    "s": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]",
+    "x": "3",
+    "s": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, False, False, False, False]",
+    "x": "3",
+    "s": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "3",
+    "s": "3"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "3",
+    "s": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "3",
+    "s": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "1",
+    "s": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "1",
+    "s": "6"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "1",
+    "s": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "1",
+    "s": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "1",
+    "s": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "1",
+    "s": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, False, False, False]",
+    "x": "1",
+    "s": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, True, False, False]",
+    "x": "1",
+    "s": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, True, False, False]",
+    "x": "1",
+    "s": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, True, False, False]",
+    "x": "1",
+    "s": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, True, False, False]",
+    "x": "1",
+    "s": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, True, False, False]",
+    "x": "1",
+    "s": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, True, False, False]",
+    "x": "1",
+    "s": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, False, False, True, True, False, False]",
+    "x": "1",
+    "s": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, False, False]",
+    "x": "1",
+    "s": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, False, False]",
+    "x": "1",
+    "s": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, False, False]",
+    "x": "1",
+    "s": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, False, False]",
+    "x": "4",
+    "s": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, False, False]",
+    "x": "4",
+    "s": "6"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, False, False]",
+    "x": "4",
+    "s": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, False, False]",
+    "x": "4",
+    "s": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, False, False]",
+    "x": "4",
+    "s": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, False]",
+    "x": "4",
+    "s": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, False]",
+    "x": "4",
+    "s": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, False]",
+    "x": "4",
+    "s": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, False]",
+    "x": "4",
+    "s": "4"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, False]",
+    "x": "4",
+    "s": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, False]",
+    "x": "4",
+    "s": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, False]",
+    "x": "2",
+    "s": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, False]",
+    "x": "2",
+    "s": "6"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, False]",
+    "x": "2",
+    "s": "6"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, False, True, True, True, True]",
+    "x": "2",
+    "s": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, True, True, True, True, True]",
+    "x": "2",
+    "s": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, True, True, True, True, True]",
+    "x": "2",
+    "s": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, True, True, True, True, True]",
+    "x": "2",
+    "s": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "can_partition"
+   ],
+   "vars": {
+    "nums": "[3, 1, 4, 2, 2]",
+    "total": "12",
+    "target": "6",
+    "reach": "[True, True, True, True, True, True, True]",
+    "x": "2",
+    "s": "2"
+   },
+   "ret": "True"
+  }
+ ]
+}

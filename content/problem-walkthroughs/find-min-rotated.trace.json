@@ -1,0 +1,209 @@
+{
+ "problem": "find-min-rotated",
+ "block": 1,
+ "version": 2,
+ "source": "4c6ba13e9941e6f5",
+ "code": "def find_min(nums: list[int]) -> int:\n    lo, hi = 0, len(nums) - 1\n    while lo < hi:\n        mid = lo + (hi - lo) // 2\n        if nums[mid] > nums[hi]:\n            lo = mid + 1   # minimum is right of mid\n        else:\n            hi = mid       # mid could be the minimum\n    return nums[lo]\n",
+ "args": [
+  [
+   4,
+   5,
+   6,
+   7,
+   0,
+   1,
+   2
+  ]
+ ],
+ "result": "0",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "0",
+    "hi": "6"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "0",
+    "hi": "6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "0",
+    "hi": "6",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "0",
+    "hi": "6",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "6",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "6",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "6",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "6",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "5",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "5",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "5",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "5",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "4",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "4",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_min"
+   ],
+   "vars": {
+    "nums": "[4, 5, 6, 7, 0, 1, 2]",
+    "lo": "4",
+    "hi": "4",
+    "mid": "4"
+   },
+   "ret": "0"
+  }
+ ]
+}

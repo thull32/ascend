@@ -1,0 +1,386 @@
+{
+ "problem": "time-based-kv",
+ "block": 1,
+ "version": 2,
+ "source": "3839c5530b2b72c9",
+ "code": "import bisect\nfrom collections import defaultdict\n\n\nclass TimeMap:\n    def __init__(self):\n        self.times: dict[str, list[int]] = defaultdict(list)\n        self.values: dict[str, list[str]] = defaultdict(list)\n\n    def set(self, key: str, value: str, timestamp: int) -> None:\n        self.times[key].append(timestamp)\n        self.values[key].append(value)\n\n    def get(self, key: str, timestamp: int) -> str:\n        if key not in self.times:\n            return \"\"\n        times = self.times[key]\n        i = bisect.bisect_right(times, timestamp)\n        return self.values[key][i - 1] if i > 0 else \"\"\n",
+ "args": [
+  [
+   "set",
+   "q",
+   "alpha",
+   5
+  ],
+  [
+   "set",
+   "q",
+   "beta",
+   10
+  ],
+  [
+   "get",
+   "q",
+   9
+  ],
+  [
+   "get",
+   "q",
+   10
+  ],
+  [
+   "get",
+   "q",
+   4
+  ],
+  [
+   "get",
+   "z",
+   7
+  ]
+ ],
+ "result": "[null, null, \"alpha\", \"beta\", \"\", \"\"]",
+ "frames": [
+  {
+   "line": 7,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 8,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.times": "{}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.times": "{}",
+    "self.values": "{}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "set"
+   ],
+   "vars": {
+    "self.times": "{}",
+    "self.values": "{}",
+    "key": "'q'",
+    "value": "'alpha'",
+    "timestamp": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "set"
+   ],
+   "vars": {
+    "self.times": "{'q': [5]}",
+    "self.values": "{}",
+    "key": "'q'",
+    "value": "'alpha'",
+    "timestamp": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "set"
+   ],
+   "vars": {
+    "self.times": "{'q': [5]}",
+    "self.values": "{'q': ['alpha']}",
+    "key": "'q'",
+    "value": "'alpha'",
+    "timestamp": "5"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "set"
+   ],
+   "vars": {
+    "self.times": "{'q': [5]}",
+    "self.values": "{'q': ['alpha']}",
+    "key": "'q'",
+    "value": "'beta'",
+    "timestamp": "10"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "set"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha']}",
+    "key": "'q'",
+    "value": "'beta'",
+    "timestamp": "10"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "set"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "value": "'beta'",
+    "timestamp": "10"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "9"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "9"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "9",
+    "times": "[5, 10]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "9",
+    "times": "[5, 10]",
+    "i": "1"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "9",
+    "times": "[5, 10]",
+    "i": "1"
+   },
+   "ret": "'alpha'"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "10"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "10"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "10",
+    "times": "[5, 10]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "10",
+    "times": "[5, 10]",
+    "i": "2"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "10",
+    "times": "[5, 10]",
+    "i": "2"
+   },
+   "ret": "'beta'"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "4"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "4"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "4",
+    "times": "[5, 10]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "4",
+    "times": "[5, 10]",
+    "i": "0"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'q'",
+    "timestamp": "4",
+    "times": "[5, 10]",
+    "i": "0"
+   },
+   "ret": "''"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'z'",
+    "timestamp": "7"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'z'",
+    "timestamp": "7"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.times": "{'q': [5, 10]}",
+    "self.values": "{'q': ['alpha', 'beta']}",
+    "key": "'z'",
+    "timestamp": "7"
+   },
+   "ret": "''"
+  }
+ ]
+}

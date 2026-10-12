@@ -1,0 +1,694 @@
+{
+ "problem": "count-components",
+ "block": 1,
+ "version": 2,
+ "source": "f6d5784447e1973f",
+ "code": "def count_components(n: int, edges: list[list[int]]) -> int:\n    parent = list(range(n))\n    size = [1] * n\n\n    def find(x: int) -> int:\n        while parent[x] != x:\n            parent[x] = parent[parent[x]]   # path halving\n            x = parent[x]\n        return x\n\n    components = n\n    for a, b in edges:\n        ra, rb = find(a), find(b)\n        if ra == rb:\n            continue                        # edge inside a component\n        if size[ra] < size[rb]:\n            ra, rb = rb, ra\n        parent[rb] = ra                     # union by size\n        size[ra] += size[rb]\n        components -= 1\n    return components\n",
+ "args": [
+  4,
+  [
+   [
+    0,
+    1
+   ],
+   [
+    1,
+    2
+   ],
+   [
+    2,
+    0
+   ]
+  ]
+ ],
+ "result": "2",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[1, 1, 1, 1]",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[1, 1, 1, 1]",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[1, 1, 1, 1]",
+    "components": "4",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[1, 1, 1, 1]",
+    "components": "4",
+    "a": "0",
+    "b": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 1, 2, 3]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 1, 2, 3]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[1, 1, 1, 1]",
+    "components": "4",
+    "a": "0",
+    "b": "1",
+    "ra": "0",
+    "rb": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[1, 1, 1, 1]",
+    "components": "4",
+    "a": "0",
+    "b": "1",
+    "ra": "0",
+    "rb": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[1, 1, 1, 1]",
+    "components": "4",
+    "a": "0",
+    "b": "1",
+    "ra": "0",
+    "rb": "1",
+    "parent": "[0, 1, 2, 3]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[1, 1, 1, 1]",
+    "components": "4",
+    "a": "0",
+    "b": "1",
+    "ra": "0",
+    "rb": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[2, 1, 1, 1]",
+    "components": "4",
+    "a": "0",
+    "b": "1",
+    "ra": "0",
+    "rb": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[2, 1, 1, 1]",
+    "components": "3",
+    "a": "0",
+    "b": "1",
+    "ra": "0",
+    "rb": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[2, 1, 1, 1]",
+    "components": "3",
+    "a": "1",
+    "b": "2",
+    "ra": "0",
+    "rb": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "1",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 2, 3]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 2, 3]"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[2, 1, 1, 1]",
+    "components": "3",
+    "a": "1",
+    "b": "2",
+    "ra": "0",
+    "rb": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[2, 1, 1, 1]",
+    "components": "3",
+    "a": "1",
+    "b": "2",
+    "ra": "0",
+    "rb": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[2, 1, 1, 1]",
+    "components": "3",
+    "a": "1",
+    "b": "2",
+    "ra": "0",
+    "rb": "2",
+    "parent": "[0, 0, 2, 3]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[2, 1, 1, 1]",
+    "components": "3",
+    "a": "1",
+    "b": "2",
+    "ra": "0",
+    "rb": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[3, 1, 1, 1]",
+    "components": "3",
+    "a": "1",
+    "b": "2",
+    "ra": "0",
+    "rb": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[3, 1, 1, 1]",
+    "components": "2",
+    "a": "1",
+    "b": "2",
+    "ra": "0",
+    "rb": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[3, 1, 1, 1]",
+    "components": "2",
+    "a": "2",
+    "b": "0",
+    "ra": "0",
+    "rb": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "2",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "count_components",
+    "find"
+   ],
+   "vars": {
+    "x": "0",
+    "parent": "[0, 0, 0, 3]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[3, 1, 1, 1]",
+    "components": "2",
+    "a": "2",
+    "b": "0",
+    "ra": "0",
+    "rb": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[3, 1, 1, 1]",
+    "components": "2",
+    "a": "2",
+    "b": "0",
+    "ra": "0",
+    "rb": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[3, 1, 1, 1]",
+    "components": "2",
+    "a": "2",
+    "b": "0",
+    "ra": "0",
+    "rb": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[3, 1, 1, 1]",
+    "components": "2",
+    "a": "2",
+    "b": "0",
+    "ra": "0",
+    "rb": "0",
+    "parent": "[0, 0, 0, 3]"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "count_components"
+   ],
+   "vars": {
+    "n": "4",
+    "edges": "[[0, 1], [1, 2], [2, 0]]",
+    "size": "[3, 1, 1, 1]",
+    "components": "2",
+    "a": "2",
+    "b": "0",
+    "ra": "0",
+    "rb": "0",
+    "parent": "[0, 0, 0, 3]"
+   },
+   "ret": "2"
+  }
+ ]
+}

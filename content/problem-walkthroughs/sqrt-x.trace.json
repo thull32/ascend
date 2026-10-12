@@ -1,0 +1,305 @@
+{
+ "problem": "sqrt-x",
+ "block": 1,
+ "version": 2,
+ "source": "a035984965adb294",
+ "code": "def my_sqrt(x: int) -> int:\n    lo, hi = 0, x\n    answer = 0\n    while lo <= hi:\n        mid = lo + (hi - lo) // 2\n        if mid * mid <= x:\n            answer = mid      # mid works; look for something larger\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return answer\n",
+ "args": [
+  8
+ ],
+ "result": "2",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "8"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "8",
+    "answer": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "8",
+    "answer": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "8",
+    "answer": "0",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "8",
+    "answer": "0",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "3",
+    "answer": "0",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "3",
+    "answer": "0",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "3",
+    "answer": "0",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "3",
+    "answer": "0",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "0",
+    "hi": "3",
+    "answer": "1",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "2",
+    "hi": "3",
+    "answer": "1",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "2",
+    "hi": "3",
+    "answer": "1",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "2",
+    "hi": "3",
+    "answer": "1",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "2",
+    "hi": "3",
+    "answer": "1",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "2",
+    "hi": "3",
+    "answer": "2",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "3",
+    "hi": "3",
+    "answer": "2",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "3",
+    "hi": "3",
+    "answer": "2",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "3",
+    "hi": "3",
+    "answer": "2",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "3",
+    "hi": "3",
+    "answer": "2",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "3",
+    "hi": "2",
+    "answer": "2",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "3",
+    "hi": "2",
+    "answer": "2",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "my_sqrt"
+   ],
+   "vars": {
+    "x": "8",
+    "lo": "3",
+    "hi": "2",
+    "answer": "2",
+    "mid": "3"
+   },
+   "ret": "2"
+  }
+ ]
+}

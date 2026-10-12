@@ -1,0 +1,253 @@
+{
+ "problem": "search-rotated",
+ "block": 1,
+ "version": 2,
+ "source": "151e6438239d6545",
+ "code": "def search(nums: list[int], target: int) -> int:\n    lo, hi = 0, len(nums) - 1\n    while lo <= hi:\n        mid = lo + (hi - lo) // 2\n        if nums[mid] == target:\n            return mid\n        if nums[lo] <= nums[mid]:           # left half is sorted\n            if nums[lo] <= target < nums[mid]:\n                hi = mid - 1\n            else:\n                lo = mid + 1\n        else:                                # right half is sorted\n            if nums[mid] < target <= nums[hi]:\n                lo = mid + 1\n            else:\n                hi = mid - 1\n    return -1\n",
+ "args": [
+  [
+   6,
+   7,
+   8,
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  8
+ ],
+ "result": "2",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "7"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "7"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "7",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "7",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "7",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "7",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "2",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "2",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "2",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "2",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "2",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "0",
+    "hi": "2",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "2",
+    "hi": "2",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "2",
+    "hi": "2",
+    "mid": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "2",
+    "hi": "2",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "2",
+    "hi": "2",
+    "mid": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "nums": "[6, 7, 8, 1, 2, 3, 4, 5]",
+    "target": "8",
+    "lo": "2",
+    "hi": "2",
+    "mid": "2"
+   },
+   "ret": "2"
+  }
+ ]
+}

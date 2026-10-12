@@ -1,0 +1,731 @@
+{
+ "problem": "max-path-sum",
+ "block": 1,
+ "version": 2,
+ "source": "6628c8e6eb795778",
+ "code": "def max_path_sum(root: TreeNode | None) -> int:\n    best = float(\"-inf\")\n\n    def arm(node: TreeNode | None) -> int:\n        nonlocal best\n        if node is None:\n            return 0\n        left = max(0, arm(node.left))     # a negative arm is worth less than no arm\n        right = max(0, arm(node.right))\n        best = max(best, left + node.val + right)   # node as the bend point\n        return node.val + max(left, right)          # best single arm for the parent\n\n    arm(root)\n    return best\n",
+ "args": [
+  {
+   "$tree": [
+    -10,
+    9,
+    20,
+    null,
+    null,
+    15,
+    7
+   ]
+  }
+ ],
+ "result": "42",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "max_path_sum"
+   ],
+   "vars": {
+    "root": "TreeNode(-10)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_path_sum"
+   ],
+   "vars": {
+    "root": "TreeNode(-10)",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "max_path_sum"
+   ],
+   "vars": {
+    "root": "TreeNode(-10)",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(-10)",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_path_sum",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(-10)",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(9)",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(9)",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "-inf"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(9)",
+    "left": "0",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "-inf"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(9)",
+    "left": "0",
+    "right": "0",
+    "best": "-inf"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(9)",
+    "left": "0",
+    "right": "0",
+    "best": "9"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(9)",
+    "left": "0",
+    "right": "0",
+    "best": "9"
+   },
+   "ret": "9"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_path_sum",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(-10)",
+    "left": "9",
+    "best": "9"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(20)",
+    "best": "9"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(20)",
+    "best": "9"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "best": "9"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "best": "9"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "9"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "9"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "9"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "left": "0",
+    "best": "9"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "9"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "9"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "9"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "left": "0",
+    "right": "0",
+    "best": "9"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "left": "0",
+    "right": "0",
+    "best": "15"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "left": "0",
+    "right": "0",
+    "best": "15"
+   },
+   "ret": "15"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(20)",
+    "left": "15",
+    "best": "15"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(7)",
+    "best": "15"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(7)",
+    "best": "15"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "15"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "15"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "15"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(7)",
+    "left": "0",
+    "best": "15"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "15"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "15"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "None",
+    "best": "15"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(7)",
+    "left": "0",
+    "right": "0",
+    "best": "15"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(7)",
+    "left": "0",
+    "right": "0",
+    "best": "15"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(7)",
+    "left": "0",
+    "right": "0",
+    "best": "15"
+   },
+   "ret": "7"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(20)",
+    "left": "15",
+    "right": "7",
+    "best": "15"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(20)",
+    "left": "15",
+    "right": "7",
+    "best": "42"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(20)",
+    "left": "15",
+    "right": "7",
+    "best": "42"
+   },
+   "ret": "35"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_path_sum",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(-10)",
+    "left": "9",
+    "right": "35",
+    "best": "42"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(-10)",
+    "left": "9",
+    "right": "35",
+    "best": "42"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_path_sum",
+    "arm"
+   ],
+   "vars": {
+    "node": "TreeNode(-10)",
+    "left": "9",
+    "right": "35",
+    "best": "42"
+   },
+   "ret": "25"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "max_path_sum"
+   ],
+   "vars": {
+    "root": "TreeNode(-10)",
+    "best": "42"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "max_path_sum"
+   ],
+   "vars": {
+    "root": "TreeNode(-10)",
+    "best": "42"
+   },
+   "ret": "42"
+  }
+ ]
+}

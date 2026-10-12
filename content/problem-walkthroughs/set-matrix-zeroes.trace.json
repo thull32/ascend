@@ -1,0 +1,933 @@
+{
+ "problem": "set-matrix-zeroes",
+ "block": 2,
+ "version": 2,
+ "source": "10fef412d5167764",
+ "code": "def set_zeroes(matrix: list[list[int]]) -> list[list[int]]:\n    m, n = len(matrix), len(matrix[0])\n    first_row_zero = any(matrix[0][c] == 0 for c in range(n))\n    first_col_zero = any(matrix[r][0] == 0 for r in range(m))\n\n    # 1. Mark: an interior zero writes a 0 into its row head and column head.\n    for r in range(1, m):\n        for c in range(1, n):\n            if matrix[r][c] == 0:\n                matrix[r][0] = 0\n                matrix[0][c] = 0\n\n    # 2. Clear the interior from the marks.\n    for r in range(1, m):\n        for c in range(1, n):\n            if matrix[r][0] == 0 or matrix[0][c] == 0:\n                matrix[r][c] = 0\n\n    # 3. Finally the first row and first column themselves.\n    if first_row_zero:\n        for c in range(n):\n            matrix[0][c] = 0\n    if first_col_zero:\n        for r in range(m):\n            matrix[r][0] = 0\n    return matrix\n",
+ "args": [
+  [
+   [
+    1,
+    2,
+    0
+   ],
+   [
+    4,
+    5,
+    6
+   ],
+   [
+    7,
+    0,
+    9
+   ]
+  ]
+ ],
+ "result": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "0",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "0",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "1",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "1",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "2",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "2",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "1",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "1",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "2",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "2",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "set_zeroes",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "2",
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [7, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 2, 0], [4, 5, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 5, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 5, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 5, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 5, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 5, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 5, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 5, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 5, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 6], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "1",
+    "c": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 9]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[1, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "0"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "0"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "set_zeroes"
+   ],
+   "vars": {
+    "matrix": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]",
+    "m": "3",
+    "n": "3",
+    "first_row_zero": "True",
+    "first_col_zero": "False",
+    "r": "2",
+    "c": "2"
+   },
+   "ret": "[[0, 0, 0], [4, 0, 0], [0, 0, 0]]"
+  }
+ ]
+}

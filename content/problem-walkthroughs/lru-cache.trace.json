@@ -1,0 +1,1264 @@
+{
+ "problem": "lru-cache",
+ "block": 1,
+ "version": 2,
+ "source": "4c81a8c2f66db03b",
+ "code": "class _Node:\n    __slots__ = (\"key\", \"val\", \"prev\", \"next\")\n\n    def __init__(self, key: int = 0, val: int = 0):\n        self.key, self.val = key, val\n        self.prev: \"_Node | None\" = None\n        self.next: \"_Node | None\" = None\n\n\nclass LRUCache:\n    def __init__(self, capacity: int):\n        self.cap = capacity\n        self.map: dict[int, _Node] = {}\n        self.head = _Node()          # sentinel: most recent is head.next\n        self.tail = _Node()          # sentinel: least recent is tail.prev\n        self.head.next = self.tail\n        self.tail.prev = self.head\n\n    def _unlink(self, node: _Node) -> None:\n        node.prev.next = node.next\n        node.next.prev = node.prev\n\n    def _insert_front(self, node: _Node) -> None:\n        node.next = self.head.next\n        node.prev = self.head\n        self.head.next.prev = node\n        self.head.next = node\n\n    def get(self, key: int) -> int:\n        node = self.map.get(key)\n        if node is None:\n            return -1\n        self._unlink(node)\n        self._insert_front(node)\n        return node.val\n\n    def put(self, key: int, value: int) -> None:\n        node = self.map.get(key)\n        if node is not None:\n            node.val = value\n            self._unlink(node)\n            self._insert_front(node)\n            return\n        node = _Node(key, value)\n        self.map[key] = node\n        self._insert_front(node)\n        if len(self.map) > self.cap:\n            victim = self.tail.prev\n            self._unlink(victim)\n            del self.map[victim.key]\n",
+ "args": [
+  [
+   "__init__",
+   2
+  ],
+  [
+   "put",
+   1,
+   1
+  ],
+  [
+   "put",
+   2,
+   2
+  ],
+  [
+   "get",
+   1
+  ],
+  [
+   "put",
+   3,
+   3
+  ],
+  [
+   "get",
+   2
+  ]
+ ],
+ "result": "[null, null, null, 1, null, -1]",
+ "frames": [
+  {
+   "line": 12,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "capacity": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "capacity": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{}",
+    "capacity": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "key": "0",
+    "val": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "0",
+    "self.val": "0",
+    "key": "0",
+    "val": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "0",
+    "self.val": "0",
+    "self.prev": "None",
+    "key": "0",
+    "val": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "0",
+    "self.val": "0",
+    "self.prev": "None",
+    "self.next": "None",
+    "key": "0",
+    "val": "0"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{}",
+    "self.head": "(0, 0)",
+    "capacity": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "key": "0",
+    "val": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "0",
+    "self.val": "0",
+    "key": "0",
+    "val": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "0",
+    "self.val": "0",
+    "self.prev": "None",
+    "key": "0",
+    "val": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "0",
+    "self.val": "0",
+    "self.prev": "None",
+    "self.next": "None",
+    "key": "0",
+    "val": "0"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{}",
+    "self.head": "(0, 0)",
+    "self.tail": "(0, 0)",
+    "capacity": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "capacity": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "capacity": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 38,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "value": "1"
+   }
+  },
+  {
+   "line": 39,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "value": "1",
+    "node": "None"
+   }
+  },
+  {
+   "line": 44,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "value": "1",
+    "node": "None"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "key": "1",
+    "val": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "1",
+    "self.val": "1",
+    "key": "1",
+    "val": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "1",
+    "self.val": "1",
+    "self.prev": "None",
+    "key": "1",
+    "val": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "1",
+    "self.val": "1",
+    "self.prev": "None",
+    "self.next": "None",
+    "key": "1",
+    "val": "1"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 45,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "value": "1",
+    "node": "(1, 1)"
+   }
+  },
+  {
+   "line": 46,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1, prev=None, next=None)}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "value": "1",
+    "node": "(1, 1)"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1, prev=None, next=None)}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1)"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1, prev=None)}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1)}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1)}",
+    "self.head": "(0, 0) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (0, 0)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 47,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "value": "1",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 47,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "value": "1",
+    "node": "(1, 1) → (0, 0)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 38,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "value": "2"
+   }
+  },
+  {
+   "line": 39,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "value": "2",
+    "node": "None"
+   }
+  },
+  {
+   "line": 44,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "value": "2",
+    "node": "None"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "key": "2",
+    "val": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "2",
+    "self.val": "2",
+    "key": "2",
+    "val": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "2",
+    "self.val": "2",
+    "self.prev": "None",
+    "key": "2",
+    "val": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "2",
+    "self.val": "2",
+    "self.prev": "None",
+    "self.next": "None",
+    "key": "2",
+    "val": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 45,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "value": "2",
+    "node": "(2, 2)"
+   }
+  },
+  {
+   "line": 46,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2, prev=None, next=None)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "value": "2",
+    "node": "(2, 2)"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2, prev=None, next=None)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(2, 2)"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2, prev=None)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(2, 2) → (1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(2, 2) → (1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(2, 2) → (1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(2, 2) → (1, 1) → (0, 0)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 47,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "value": "2",
+    "node": "(2, 2) → (1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 47,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "value": "2",
+    "node": "(2, 2) → (1, 1) → (0, 0)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 30,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "get",
+    "_unlink"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "get",
+    "_unlink"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "get",
+    "_unlink"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (0, 0)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 34,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "get",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (0, 0)"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "get",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "get",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "get",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "get",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(1, 1) → (2, 2) → (0, 0)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 35,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "node": "(1, 1) → (2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "1",
+    "node": "(1, 1) → (2, 2) → (0, 0)"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 38,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3"
+   }
+  },
+  {
+   "line": 39,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3",
+    "node": "None"
+   }
+  },
+  {
+   "line": 44,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3",
+    "node": "None"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "key": "3",
+    "val": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "3",
+    "self.val": "3",
+    "key": "3",
+    "val": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "3",
+    "self.val": "3",
+    "self.prev": "None",
+    "key": "3",
+    "val": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "put",
+    "__init__"
+   ],
+   "vars": {
+    "self.key": "3",
+    "self.val": "3",
+    "self.prev": "None",
+    "self.next": "None",
+    "key": "3",
+    "val": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 45,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3",
+    "node": "(3, 3)"
+   }
+  },
+  {
+   "line": 46,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3, prev=None, next=None)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3",
+    "node": "(3, 3)"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3, prev=None, next=None)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(3, 3)"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3, prev=None)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(3, 3) → (1, 1) → (2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(3, 3) → (1, 1) → (2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(3, 3) → (1, 1) → (2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "put",
+    "_insert_front"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(3, 3) → (1, 1) → (2, 2) → (0, 0)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 47,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3",
+    "node": "(3, 3) → (1, 1) → (2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 48,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3",
+    "node": "(3, 3) → (1, 1) → (2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 49,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3",
+    "node": "(3, 3) → (1, 1) → (2, 2) → (0, 0)",
+    "victim": "(2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "put",
+    "_unlink"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (2, 2) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "put",
+    "_unlink"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "put",
+    "_unlink"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "node": "(2, 2) → (0, 0)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 50,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 2: _Node(key=2, val=2), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3",
+    "node": "(3, 3) → (1, 1) → (0, 0)",
+    "victim": "(2, 2) → (0, 0)"
+   }
+  },
+  {
+   "line": 50,
+   "stack": [
+    "put"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "3",
+    "value": "3",
+    "node": "(3, 3) → (1, 1) → (0, 0)",
+    "victim": "(2, 2) → (0, 0)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 30,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "node": "None"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "node": "None"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.cap": "2",
+    "self.map": "{1: _Node(key=1, val=1), 3: _Node(key=3, val=3)}",
+    "self.head": "(0, 0) → (3, 3) → (1, 1) → (0, 0)",
+    "self.tail": "(0, 0)",
+    "key": "2",
+    "node": "None"
+   },
+   "ret": "-1"
+  }
+ ]
+}

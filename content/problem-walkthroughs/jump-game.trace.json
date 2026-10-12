@@ -1,0 +1,297 @@
+{
+ "problem": "jump-game",
+ "block": 1,
+ "version": 2,
+ "source": "53b2088d0d56d845",
+ "code": "def can_jump(nums: list[int]) -> bool:\n    reach = 0\n    last = len(nums) - 1\n    for i, step in enumerate(nums):\n        if i > reach:\n            return False          # a gap: index i is unreachable\n        reach = max(reach, i + step)\n        if reach >= last:\n            return True\n    return True\n",
+ "args": [
+  [
+   3,
+   1,
+   0,
+   0,
+   2
+  ]
+ ],
+ "result": "false",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "0",
+    "last": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "0",
+    "last": "4",
+    "i": "0",
+    "step": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "0",
+    "last": "4",
+    "i": "0",
+    "step": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "0",
+    "step": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "0",
+    "step": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "1",
+    "step": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "1",
+    "step": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "1",
+    "step": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "1",
+    "step": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "2",
+    "step": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "2",
+    "step": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "2",
+    "step": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "2",
+    "step": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "3",
+    "step": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "3",
+    "step": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "3",
+    "step": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "3",
+    "step": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "4",
+    "step": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "4",
+    "step": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "can_jump"
+   ],
+   "vars": {
+    "nums": "[3, 1, 0, 0, 2]",
+    "reach": "3",
+    "last": "4",
+    "i": "4",
+    "step": "2"
+   },
+   "ret": "False"
+  }
+ ]
+}

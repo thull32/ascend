@@ -1,0 +1,384 @@
+{
+ "problem": "decode-ways",
+ "block": 2,
+ "version": 2,
+ "source": "296b12bddb08be53",
+ "code": "def num_decodings(s: str) -> int:\n    two_back, one_back = 0, 1          # ways[i - 2], ways[i - 1]; ways[-1] is never used\n    for i in range(1, len(s) + 1):\n        current = 0\n        if s[i - 1] != \"0\":\n            current += one_back\n        if i >= 2 and \"10\" <= s[i - 2:i] <= \"26\":\n            current += two_back\n        two_back, one_back = one_back, current\n    return one_back\n",
+ "args": [
+  "2101"
+ ],
+ "result": "1",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "0",
+    "one_back": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "0",
+    "one_back": "1",
+    "i": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "0",
+    "one_back": "1",
+    "i": "1",
+    "current": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "0",
+    "one_back": "1",
+    "i": "1",
+    "current": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "0",
+    "one_back": "1",
+    "i": "1",
+    "current": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "0",
+    "one_back": "1",
+    "i": "1",
+    "current": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "1",
+    "current": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "2",
+    "current": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "2",
+    "current": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "2",
+    "current": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "2",
+    "current": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "2",
+    "current": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "2",
+    "current": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "2",
+    "i": "2",
+    "current": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "2",
+    "i": "3",
+    "current": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "2",
+    "i": "3",
+    "current": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "2",
+    "i": "3",
+    "current": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "2",
+    "i": "3",
+    "current": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "2",
+    "i": "3",
+    "current": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "2",
+    "one_back": "1",
+    "i": "3",
+    "current": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "2",
+    "one_back": "1",
+    "i": "4",
+    "current": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "2",
+    "one_back": "1",
+    "i": "4",
+    "current": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "2",
+    "one_back": "1",
+    "i": "4",
+    "current": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "2",
+    "one_back": "1",
+    "i": "4",
+    "current": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "2",
+    "one_back": "1",
+    "i": "4",
+    "current": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "4",
+    "current": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "4",
+    "current": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "num_decodings"
+   ],
+   "vars": {
+    "s": "'2101'",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "4",
+    "current": "1"
+   },
+   "ret": "1"
+  }
+ ]
+}

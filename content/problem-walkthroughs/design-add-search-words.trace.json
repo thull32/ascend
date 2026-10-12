@@ -1,0 +1,1108 @@
+{
+ "problem": "design-add-search-words",
+ "block": 1,
+ "version": 2,
+ "source": "6f0e44b4e46ff79d",
+ "code": "class WordDictionary:\n    def __init__(self):\n        self.root: dict = {}\n\n    def add_word(self, word: str) -> None:\n        node = self.root\n        for ch in word:\n            node = node.setdefault(ch, {})\n        node[\"$\"] = True\n\n    def search(self, word: str) -> bool:\n        def dfs(node: dict, i: int) -> bool:\n            if i == len(word):\n                return \"$\" in node\n            ch = word[i]\n            if ch == \".\":\n                for key, child in node.items():\n                    if key != \"$\" and dfs(child, i + 1):\n                        return True\n                return False\n            child = node.get(ch)\n            return child is not None and dfs(child, i + 1)\n\n        return dfs(self.root, 0)\n",
+ "args": [
+  [
+   "add_word",
+   "bat"
+  ],
+  [
+   "add_word",
+   "dad"
+  ],
+  [
+   "search",
+   ".ad"
+  ],
+  [
+   "search",
+   "d."
+  ]
+ ],
+ "result": "[null, null, true, false]",
+ "frames": [
+  {
+   "line": 3,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 3,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.root": "{}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{}",
+    "word": "'bat'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{}",
+    "word": "'bat'",
+    "node": "{}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{}",
+    "word": "'bat'",
+    "node": "{}",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {}}",
+    "word": "'bat'",
+    "node": "{}",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {}}",
+    "word": "'bat'",
+    "node": "{}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {}}}",
+    "word": "'bat'",
+    "node": "{}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {}}}",
+    "word": "'bat'",
+    "node": "{}",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}}",
+    "word": "'bat'",
+    "node": "{}",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}}",
+    "word": "'bat'",
+    "node": "{}",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}}",
+    "word": "'bat'",
+    "node": "{'$': True}",
+    "ch": "'t'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}}",
+    "word": "'dad'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}}",
+    "word": "'dad'",
+    "node": "{'b': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}}",
+    "word": "'dad'",
+    "node": "{'b': {'a': {'t': …}}}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {}}",
+    "word": "'dad'",
+    "node": "{}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {}}",
+    "word": "'dad'",
+    "node": "{}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {}}}",
+    "word": "'dad'",
+    "node": "{}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {}}}",
+    "word": "'dad'",
+    "node": "{}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "word": "'dad'",
+    "node": "{}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "word": "'dad'",
+    "node": "{}",
+    "ch": "'d'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add_word"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "word": "'dad'",
+    "node": "{'$': True}",
+    "ch": "'d'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'.'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'.'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'.'",
+    "key": "'b'",
+    "child": "{'a': {'t': {'$': True}}}",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'t': {'$': True}}}",
+    "i": "1",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'t': {'$': True}}}",
+    "i": "1",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'t': {'$': True}}}",
+    "i": "1",
+    "ch": "'a'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'t': {'$': True}}}",
+    "i": "1",
+    "ch": "'a'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'t': {'$': True}}}",
+    "i": "1",
+    "ch": "'a'",
+    "child": "{'t': {'$': True}}",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'t': {'$': True}}",
+    "i": "2",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'t': {'$': True}}",
+    "i": "2",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'t': {'$': True}}",
+    "i": "2",
+    "ch": "'d'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'t': {'$': True}}",
+    "i": "2",
+    "ch": "'d'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'t': {'$': True}}",
+    "i": "2",
+    "ch": "'d'",
+    "child": "None",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'t': {'$': True}}",
+    "i": "2",
+    "ch": "'d'",
+    "child": "None",
+    "word": "'.ad'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'t': {'$': True}}}",
+    "i": "1",
+    "ch": "'a'",
+    "child": "{'t': {'$': True}}",
+    "word": "'.ad'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 17,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'.'",
+    "key": "'b'",
+    "child": "{'a': {'t': {'$': True}}}",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'.'",
+    "key": "'d'",
+    "child": "{'a': {'d': {'$': True}}}",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'a'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'a'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'a'",
+    "child": "{'d': {'$': True}}",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'d': {'$': True}}",
+    "i": "2",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'d': {'$': True}}",
+    "i": "2",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'d': {'$': True}}",
+    "i": "2",
+    "ch": "'d'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'d': {'$': True}}",
+    "i": "2",
+    "ch": "'d'",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'d': {'$': True}}",
+    "i": "2",
+    "ch": "'d'",
+    "child": "{'$': True}",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'$': True}",
+    "i": "3",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'$': True}",
+    "i": "3",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'$': True}",
+    "i": "3",
+    "word": "'.ad'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'d': {'$': True}}",
+    "i": "2",
+    "ch": "'d'",
+    "child": "{'$': True}",
+    "word": "'.ad'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'a'",
+    "child": "{'d': {'$': True}}",
+    "word": "'.ad'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'.'",
+    "key": "'d'",
+    "child": "{'a': {'d': {'$': True}}}",
+    "word": "'.ad'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'.'",
+    "key": "'d'",
+    "child": "{'a': {'d': {'$': True}}}",
+    "word": "'.ad'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 24,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "word": "'.ad'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'d'",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'d'",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'d'",
+    "child": "{'a': {'d': {'$': True}}}",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'.'",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'.'",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'.'",
+    "key": "'a'",
+    "child": "{'d': {'$': True}}",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'d': {'$': True}}",
+    "i": "2",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'d': {'$': True}}",
+    "i": "2",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'d': {'$': True}}",
+    "i": "2",
+    "word": "'d.'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 17,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'.'",
+    "key": "'a'",
+    "child": "{'d': {'$': True}}",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'.'",
+    "key": "'a'",
+    "child": "{'d': {'$': True}}",
+    "word": "'d.'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "search",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'a': {'d': {'$': True}}}",
+    "i": "1",
+    "ch": "'.'",
+    "key": "'a'",
+    "child": "{'d': {'$': True}}",
+    "word": "'d.'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "dfs"
+   ],
+   "vars": {
+    "node": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "i": "0",
+    "ch": "'d'",
+    "child": "{'a': {'d': {'$': True}}}",
+    "word": "'d.'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 24,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "{'b': {'a': {'t': …}}, 'd': {'a': {'d': …}}}",
+    "word": "'d.'"
+   },
+   "ret": "False"
+  }
+ ]
+}

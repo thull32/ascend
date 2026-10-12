@@ -1,0 +1,1225 @@
+{
+ "problem": "palindrome-partitioning",
+ "block": 1,
+ "version": 2,
+ "source": "114dc06ba45dd81c",
+ "code": "def partition(s: str) -> list[list[str]]:\n    n = len(s)\n    pal = [[False] * n for _ in range(n)]\n    for i in range(n - 1, -1, -1):\n        for j in range(i, n):\n            pal[i][j] = s[i] == s[j] and (j - i < 2 or pal[i + 1][j - 1])\n\n    result: list[list[str]] = []\n    path: list[str] = []\n\n    def backtrack(start: int) -> None:\n        if start == n:\n            result.append(path[:])\n            return\n        for j in range(start, n):\n            if pal[start][j]:\n                path.append(s[start:j + 1])\n                backtrack(j + 1)\n                path.pop()\n\n    backtrack(0)\n    return result\n",
+ "args": [
+  "aab"
+ ],
+ "result": "[[\"a\", \"a\", \"b\"], [\"aa\", \"b\"]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "n": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "_": "0",
+    "n": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "_": "1",
+    "n": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "_": "2",
+    "n": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "n": "3",
+    "pal": "[[False, False, False], [False, False, False], [False, False, False]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "2",
+    "n": "3",
+    "pal": "[[False, False, False], [False, False, False], [False, False, False]]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[False, False, False], [False, False, False], [False, False, False]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[False, False, False], [False, False, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[False, False, False], [False, False, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "1",
+    "j": "2",
+    "n": "3",
+    "pal": "[[False, False, False], [False, False, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "1",
+    "j": "1",
+    "n": "3",
+    "pal": "[[False, False, False], [False, False, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "1",
+    "j": "1",
+    "n": "3",
+    "pal": "[[False, False, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "1",
+    "j": "2",
+    "n": "3",
+    "pal": "[[False, False, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "1",
+    "j": "2",
+    "n": "3",
+    "pal": "[[False, False, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "1",
+    "j": "2",
+    "n": "3",
+    "pal": "[[False, False, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[False, False, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "0",
+    "n": "3",
+    "pal": "[[False, False, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "0",
+    "n": "3",
+    "pal": "[[True, False, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, False, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "0",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "0",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "0",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a', 'b']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a', 'b']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a', 'b']",
+    "result": "[]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a', 'b']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a', 'b']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a', 'b']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a', 'a']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "1",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "0",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['a']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "0",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa', 'b']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa', 'b']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa', 'b']",
+    "result": "[['a', 'a', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa', 'b']",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "3",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa', 'b']",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa', 'b']",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa']",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "2",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa']",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "['aa']",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "1",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "partition",
+    "backtrack"
+   ],
+   "vars": {
+    "start": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]",
+    "s": "'aab'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 22,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "partition"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "i": "0",
+    "j": "2",
+    "n": "3",
+    "pal": "[[True, True, False], [False, True, False], [False, False, True]]",
+    "path": "[]",
+    "result": "[['a', 'a', 'b'], ['aa', 'b']]"
+   },
+   "ret": "[['a', 'a', 'b'], ['aa', 'b']]"
+  }
+ ]
+}

@@ -1,0 +1,754 @@
+{
+ "problem": "reconstruct-itinerary",
+ "block": 1,
+ "version": 2,
+ "source": "dff3dca40b7fe99b",
+ "code": "from collections import defaultdict\n\ndef find_itinerary(tickets: list[list[str]]) -> list[str]:\n    graph: dict[str, list[str]] = defaultdict(list)\n    for src, dst in sorted(tickets, reverse=True):\n        graph[src].append(dst)            # reverse-sorted: pop() gives the smallest\n    stack = [\"JFK\"]\n    route: list[str] = []\n    while stack:\n        airport = stack[-1]\n        if graph[airport]:\n            stack.append(graph[airport].pop())\n        else:\n            route.append(stack.pop())     # post-order: stuck, so it goes last\n    return route[::-1]\n",
+ "args": [
+  [
+   [
+    "JFK",
+    "SEA"
+   ],
+   [
+    "SEA",
+    "LAX"
+   ],
+   [
+    "LAX",
+    "JFK"
+   ],
+   [
+    "JFK",
+    "ATL"
+   ]
+  ]
+ ],
+ "result": "[\"JFK\", \"SEA\", \"LAX\", \"JFK\", \"ATL\"]",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{}",
+    "src": "'SEA'",
+    "dst": "'LAX'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX']}",
+    "src": "'SEA'",
+    "dst": "'LAX'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX']}",
+    "src": "'LAX'",
+    "dst": "'JFK'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK']}",
+    "src": "'LAX'",
+    "dst": "'JFK'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK']}",
+    "src": "'JFK'",
+    "dst": "'SEA'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA']}",
+    "src": "'JFK'",
+    "dst": "'SEA'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA']}",
+    "src": "'JFK'",
+    "dst": "'ATL'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA', 'ATL']}",
+    "src": "'JFK'",
+    "dst": "'ATL'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA', 'ATL']}",
+    "src": "'JFK'",
+    "dst": "'ATL'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA', 'ATL']}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA', 'ATL']}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA', 'ATL']}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA', 'ATL']}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "[]",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA', 'ATL']}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "[]",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA']}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'ATL']",
+    "route": "[]",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA']}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'ATL']",
+    "route": "[]",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA']}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'ATL']",
+    "route": "[]",
+    "airport": "'ATL'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA'], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'ATL']",
+    "route": "[]",
+    "airport": "'ATL'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA'], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "['ATL']",
+    "airport": "'ATL'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA'], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "['ATL']",
+    "airport": "'ATL'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA'], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "['ATL']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': ['SEA'], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "['ATL']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA']",
+    "route": "['ATL']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA']",
+    "route": "['ATL']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA']",
+    "route": "['ATL']",
+    "airport": "'SEA'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': ['LAX'], 'LAX': ['JFK'], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA']",
+    "route": "['ATL']",
+    "airport": "'SEA'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': ['JFK'], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX']",
+    "route": "['ATL']",
+    "airport": "'SEA'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': ['JFK'], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX']",
+    "route": "['ATL']",
+    "airport": "'SEA'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': ['JFK'], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX']",
+    "route": "['ATL']",
+    "airport": "'LAX'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': ['JFK'], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX']",
+    "route": "['ATL']",
+    "airport": "'LAX'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX', 'JFK']",
+    "route": "['ATL']",
+    "airport": "'LAX'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX', 'JFK']",
+    "route": "['ATL']",
+    "airport": "'LAX'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX', 'JFK']",
+    "route": "['ATL']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX', 'JFK']",
+    "route": "['ATL']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX']",
+    "route": "['ATL', 'JFK']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX']",
+    "route": "['ATL', 'JFK']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX']",
+    "route": "['ATL', 'JFK']",
+    "airport": "'LAX'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA', 'LAX']",
+    "route": "['ATL', 'JFK']",
+    "airport": "'LAX'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA']",
+    "route": "['ATL', 'JFK', 'LAX']",
+    "airport": "'LAX'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA']",
+    "route": "['ATL', 'JFK', 'LAX']",
+    "airport": "'LAX'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA']",
+    "route": "['ATL', 'JFK', 'LAX']",
+    "airport": "'SEA'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK', 'SEA']",
+    "route": "['ATL', 'JFK', 'LAX']",
+    "airport": "'SEA'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "['ATL', 'JFK', 'LAX', 'SEA']",
+    "airport": "'SEA'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "['ATL', 'JFK', 'LAX', 'SEA']",
+    "airport": "'SEA'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "['ATL', 'JFK', 'LAX', 'SEA']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "['JFK']",
+    "route": "['ATL', 'JFK', 'LAX', 'SEA']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "[]",
+    "route": "['ATL', 'JFK', 'LAX', 'SEA', 'JFK']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "[]",
+    "route": "['ATL', 'JFK', 'LAX', 'SEA', 'JFK']",
+    "airport": "'JFK'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_itinerary"
+   ],
+   "vars": {
+    "tickets": "[['JFK', 'SEA'], ['SEA', 'LAX'], ['LAX', 'JFK'], ['JFK', 'ATL']]",
+    "graph": "{'SEA': [], 'LAX': [], 'JFK': [], 'ATL': []}",
+    "src": "'JFK'",
+    "dst": "'ATL'",
+    "stack": "[]",
+    "route": "['ATL', 'JFK', 'LAX', 'SEA', 'JFK']",
+    "airport": "'JFK'"
+   },
+   "ret": "['JFK', 'SEA', 'LAX', 'JFK', 'ATL']"
+  }
+ ]
+}

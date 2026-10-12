@@ -1,0 +1,425 @@
+{
+ "problem": "product-except-self",
+ "block": 1,
+ "version": 2,
+ "source": "42e9a0c01a50eb4d",
+ "code": "def product_except_self(nums: list[int]) -> list[int]:\n    n = len(nums)\n    out = [1] * n\n\n    running = 1                      # product of nums[0..i-1]\n    for i in range(n):\n        out[i] = running\n        running *= nums[i]\n\n    running = 1                      # product of nums[i+1..n-1]\n    for i in range(n - 1, -1, -1):\n        out[i] *= running\n        running *= nums[i]\n    return out\n",
+ "args": [
+  [
+   2,
+   3,
+   0,
+   4
+  ]
+ ],
+ "result": "[0, 0, 24, 0]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 1, 1, 1]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 1, 1, 1]",
+    "running": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 1, 1, 1]",
+    "running": "1",
+    "i": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 1, 1, 1]",
+    "running": "1",
+    "i": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 1, 1, 1]",
+    "running": "2",
+    "i": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 1, 1, 1]",
+    "running": "2",
+    "i": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 1, 1]",
+    "running": "2",
+    "i": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 1, 1]",
+    "running": "6",
+    "i": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 1, 1]",
+    "running": "6",
+    "i": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 1]",
+    "running": "6",
+    "i": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 1]",
+    "running": "0",
+    "i": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 1]",
+    "running": "0",
+    "i": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 0]",
+    "running": "0",
+    "i": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 0]",
+    "running": "0",
+    "i": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 0]",
+    "running": "0",
+    "i": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 0]",
+    "running": "1",
+    "i": "3"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 0]",
+    "running": "1",
+    "i": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 0]",
+    "running": "1",
+    "i": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 0]",
+    "running": "4",
+    "i": "3"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 6, 0]",
+    "running": "4",
+    "i": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 24, 0]",
+    "running": "4",
+    "i": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 24, 0]",
+    "running": "0",
+    "i": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 2, 24, 0]",
+    "running": "0",
+    "i": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 0, 24, 0]",
+    "running": "0",
+    "i": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 0, 24, 0]",
+    "running": "0",
+    "i": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[1, 0, 24, 0]",
+    "running": "0",
+    "i": "0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[0, 0, 24, 0]",
+    "running": "0",
+    "i": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[0, 0, 24, 0]",
+    "running": "0",
+    "i": "0"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[0, 0, 24, 0]",
+    "running": "0",
+    "i": "0"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "product_except_self"
+   ],
+   "vars": {
+    "nums": "[2, 3, 0, 4]",
+    "n": "4",
+    "out": "[0, 0, 24, 0]",
+    "running": "0",
+    "i": "0"
+   },
+   "ret": "[0, 0, 24, 0]"
+  }
+ ]
+}

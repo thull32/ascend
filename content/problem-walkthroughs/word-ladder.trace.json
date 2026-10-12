@@ -1,0 +1,3006 @@
+{
+ "problem": "word-ladder",
+ "block": 1,
+ "version": 2,
+ "source": "b3671a79bf1034a1",
+ "code": "from collections import defaultdict, deque\n\ndef ladder_length(begin_word: str, end_word: str, word_list: list[str]) -> int:\n    if end_word not in set(word_list):\n        return 0\n    L = len(begin_word)\n    buckets: dict[str, list[str]] = defaultdict(list)\n    for w in word_list:\n        for i in range(L):\n            buckets[w[:i] + \"*\" + w[i + 1:]].append(w)\n\n    seen = {begin_word}\n    queue = deque([begin_word])\n    level = 1\n    while queue:\n        for _ in range(len(queue)):\n            word = queue.popleft()\n            for i in range(L):\n                pattern = word[:i] + \"*\" + word[i + 1:]\n                for nxt in buckets.pop(pattern, ()):   # use each bucket once\n                    if nxt == end_word:\n                        return level + 1\n                    if nxt not in seen:\n                        seen.add(nxt)\n                        queue.append(nxt)\n        level += 1\n    return 0\n",
+ "args": [
+  "lead",
+  "gold",
+  [
+   "load",
+   "goad",
+   "gold",
+   "lend"
+  ]
+ ],
+ "result": "4",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{}",
+    "w": "'load'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{}",
+    "w": "'load'",
+    "i": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load']}",
+    "w": "'load'",
+    "i": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load']}",
+    "w": "'load'",
+    "i": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load'], 'l*ad': ['load']}",
+    "w": "'load'",
+    "i": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load'], 'l*ad': ['load']}",
+    "w": "'load'",
+    "i": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load'], 'l*ad': ['load'], 'lo*d': ['load']}",
+    "w": "'load'",
+    "i": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load'], 'l*ad': ['load'], 'lo*d': ['load']}",
+    "w": "'load'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load']}",
+    "w": "'load'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load']}",
+    "w": "'load'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load']}",
+    "w": "'goad'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load']}",
+    "w": "'goad'",
+    "i": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load']}",
+    "w": "'goad'",
+    "i": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load']}",
+    "w": "'goad'",
+    "i": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad']}",
+    "w": "'goad'",
+    "i": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad']}",
+    "w": "'goad'",
+    "i": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad']}",
+    "w": "'goad'",
+    "i": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad']}",
+    "w": "'goad'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad'], 'goa*': ['goad']}",
+    "w": "'goad'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad'], 'goa*': ['goad']}",
+    "w": "'goad'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad'], 'goa*': ['goad']}",
+    "w": "'gold'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad'], 'goa*': ['goad']}",
+    "w": "'gold'",
+    "i": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad'], 'goa*': ['goad'], '*old': ['gold']}",
+    "w": "'gold'",
+    "i": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad'], 'goa*': ['goad'], '*old': ['gold']}",
+    "w": "'gold'",
+    "i": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld'…",
+    "w": "'gold'",
+    "i": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld'…",
+    "w": "'gold'",
+    "i": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'gold'",
+    "i": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'gold'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'gold'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'gold'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead'}",
+    "queue": "deque(['lead'])"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead'}",
+    "queue": "deque(['lead'])",
+    "level": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead'}",
+    "queue": "deque(['lead'])",
+    "level": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead'}",
+    "queue": "deque(['lead'])",
+    "level": "1",
+    "_": "0"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'*ead'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'*ead'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'lead'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'*ead'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'l*ad': ['load'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold']…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'lead'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'l*ad'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'lead'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'l*ad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'lead'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'l*ad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'lead'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'l*ad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'lead', 'load'}",
+    "queue": "deque([])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'l*ad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'lead', 'load'}",
+    "queue": "deque(['load'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'l*ad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'lead', 'load'}",
+    "queue": "deque(['load'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'l*ad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'lead', 'load'}",
+    "queue": "deque(['load'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'l*ad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'lead', 'load'}",
+    "queue": "deque(['load'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'le*d'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'lead', 'load'}",
+    "queue": "deque(['load'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'lead', 'load'}",
+    "queue": "deque(['load'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'lead', 'load'}",
+    "queue": "deque(['load'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'lea*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'lea*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'lea*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "1",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'lea*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'lea*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'lea*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['load', 'lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'lead'",
+    "pattern": "'lea*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'lea*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'lea*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'*oad': ['load', 'goad'], 'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold']…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'*oad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'l*ad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'l*ad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'l*ad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'lo*d': ['load'], 'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end'…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'lo*d'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd'…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'lo*d'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd'…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'lo*d'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd'…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'lo*d'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd'…",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'lo*d'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd'…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'lo*d'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'loa*': ['load'], 'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd'…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'loa*'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd': ['lend'], 'len*'…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'loa*'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd': ['lend'], 'len*'…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'loa*'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd': ['lend'], 'len*'…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'loa*'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd': ['lend'], 'len*'…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'loa*'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd': ['lend'], 'len*'…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "0",
+    "word": "'load'",
+    "pattern": "'loa*'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd': ['lend'], 'len*'…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['lend', 'goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'load'",
+    "pattern": "'loa*'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd': ['lend'], 'len*'…",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'loa*'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd': ['lend'], 'len*'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'loa*'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], '*end': ['lend'], 'l*nd': ['lend'], 'len*'…",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'*end'",
+    "nxt": "'load'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'l*nd': ['lend'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'*end'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'l*nd': ['lend'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'*end'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'l*nd': ['lend'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'*end'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'l*nd': ['lend'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'*end'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'l*nd': ['lend'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'*end'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'l*nd': ['lend'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'l*nd'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'l*nd'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'l*nd'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'l*nd'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'l*nd'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'l*nd'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'le*d'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold'], 'len*': ['lend']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "2",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "3",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "3",
+    "_": "1",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque(['goad'])",
+    "level": "3",
+    "_": "0",
+    "word": "'lend'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "3",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'len*'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'*oad'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "0",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'*oad'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'*oad'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'g*ad': ['goad'], 'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'g*ad'",
+    "nxt": "'lend'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'g*ad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'g*ad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'g*ad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "1",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'g*ad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'g*ad'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'go*d': ['goad', 'gold'], 'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'go*d'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'go*d'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'go*d'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'go*d'",
+    "nxt": "'goad'"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'go*d'",
+    "nxt": "'gold'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'go*d'",
+    "nxt": "'gold'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "ladder_length"
+   ],
+   "vars": {
+    "begin_word": "'lead'",
+    "end_word": "'gold'",
+    "word_list": "['load', 'goad', 'gold', 'lend']",
+    "L": "4",
+    "buckets": "{'goa*': ['goad'], '*old': ['gold'], 'g*ld': ['gold'], 'gol*': ['gold']}",
+    "w": "'lend'",
+    "i": "2",
+    "seen": "{'goad', 'lead', 'lend', 'load'}",
+    "queue": "deque([])",
+    "level": "3",
+    "_": "0",
+    "word": "'goad'",
+    "pattern": "'go*d'",
+    "nxt": "'gold'"
+   },
+   "ret": "4"
+  }
+ ]
+}

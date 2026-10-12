@@ -1,0 +1,572 @@
+{
+ "problem": "design-circular-queue",
+ "block": 1,
+ "version": 2,
+ "source": "098062644dca80c3",
+ "code": "class MyCircularQueue:\n    def __init__(self, k: int):\n        self.buf = [0] * k\n        self.k = k\n        self.head = 0\n        self.count = 0\n\n    def enqueue(self, value: int) -> bool:\n        if self.count == self.k:\n            return False\n        self.buf[(self.head + self.count) % self.k] = value\n        self.count += 1\n        return True\n\n    def dequeue(self) -> bool:\n        if self.count == 0:\n            return False\n        self.head = (self.head + 1) % self.k\n        self.count -= 1\n        return True\n\n    def front(self) -> int:\n        return -1 if self.count == 0 else self.buf[self.head]\n\n    def rear(self) -> int:\n        return -1 if self.count == 0 else self.buf[(self.head + self.count - 1) % self.k]\n\n    def is_empty(self) -> bool:\n        return self.count == 0\n\n    def is_full(self) -> bool:\n        return self.count == self.k\n",
+ "args": [
+  [
+   "__init__",
+   3
+  ],
+  [
+   "enqueue",
+   1
+  ],
+  [
+   "enqueue",
+   2
+  ],
+  [
+   "enqueue",
+   3
+  ],
+  [
+   "enqueue",
+   4
+  ],
+  [
+   "rear"
+  ],
+  [
+   "is_full"
+  ],
+  [
+   "dequeue"
+  ],
+  [
+   "enqueue",
+   4
+  ],
+  [
+   "rear"
+  ],
+  [
+   "front"
+  ]
+ ],
+ "result": "[null, true, true, true, false, 3, true, true, true, 4, 2]",
+ "frames": [
+  {
+   "line": 3,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "k": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.buf": "[0, 0, 0]",
+    "k": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.buf": "[0, 0, 0]",
+    "self.k": "3",
+    "k": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.buf": "[0, 0, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "k": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.buf": "[0, 0, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "0",
+    "k": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[0, 0, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "0",
+    "value": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[0, 0, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "0",
+    "value": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 0, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "0",
+    "value": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 0, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "1",
+    "value": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 0, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "1",
+    "value": "1"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 0, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "1",
+    "value": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 0, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "1",
+    "value": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "1",
+    "value": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "2",
+    "value": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "2",
+    "value": "2"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "2",
+    "value": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 0]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "2",
+    "value": "3"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "2",
+    "value": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3",
+    "value": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3",
+    "value": "3"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3",
+    "value": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3",
+    "value": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3",
+    "value": "4"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "rear"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "rear"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 32,
+   "stack": [
+    "is_full"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "is_full"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "dequeue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "dequeue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "0",
+    "self.count": "3"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "dequeue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "3"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "dequeue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "2"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "dequeue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "2"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "2",
+    "value": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[1, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "2",
+    "value": "4"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[4, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "2",
+    "value": "4"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[4, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "3",
+    "value": "4"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "enqueue"
+   ],
+   "vars": {
+    "self.buf": "[4, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "3",
+    "value": "4"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "rear"
+   ],
+   "vars": {
+    "self.buf": "[4, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "rear"
+   ],
+   "vars": {
+    "self.buf": "[4, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "3"
+   },
+   "ret": "4"
+  },
+  {
+   "line": 23,
+   "stack": [
+    "front"
+   ],
+   "vars": {
+    "self.buf": "[4, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "3"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "front"
+   ],
+   "vars": {
+    "self.buf": "[4, 2, 3]",
+    "self.k": "3",
+    "self.head": "1",
+    "self.count": "3"
+   },
+   "ret": "2"
+  }
+ ]
+}

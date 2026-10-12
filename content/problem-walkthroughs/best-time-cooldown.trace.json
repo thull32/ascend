@@ -1,0 +1,251 @@
+{
+ "problem": "best-time-cooldown",
+ "block": 2,
+ "version": 2,
+ "source": "192a1af77e697c7d",
+ "code": "def max_profit_cooldown(prices: list[int]) -> int:\n    hold, sold, rest = float(\"-inf\"), float(\"-inf\"), 0\n    for p in prices:\n        # all three right-hand sides use yesterday's values\n        hold, sold, rest = max(hold, rest - p), hold + p, max(rest, sold)\n    return max(sold, rest)\n",
+ "args": [
+  [
+   2,
+   1,
+   4,
+   5,
+   2,
+   9,
+   7
+  ]
+ ],
+ "result": "10",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-inf",
+    "sold": "-inf",
+    "rest": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-inf",
+    "sold": "-inf",
+    "rest": "0",
+    "p": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-2",
+    "sold": "-inf",
+    "rest": "0",
+    "p": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-2",
+    "sold": "-inf",
+    "rest": "0",
+    "p": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-1",
+    "sold": "-1",
+    "rest": "0",
+    "p": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-1",
+    "sold": "-1",
+    "rest": "0",
+    "p": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-1",
+    "sold": "3",
+    "rest": "0",
+    "p": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-1",
+    "sold": "3",
+    "rest": "0",
+    "p": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-1",
+    "sold": "4",
+    "rest": "3",
+    "p": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "-1",
+    "sold": "4",
+    "rest": "3",
+    "p": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "1",
+    "sold": "1",
+    "rest": "4",
+    "p": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "1",
+    "sold": "1",
+    "rest": "4",
+    "p": "9"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "1",
+    "sold": "10",
+    "rest": "4",
+    "p": "9"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "1",
+    "sold": "10",
+    "rest": "4",
+    "p": "7"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "1",
+    "sold": "8",
+    "rest": "10",
+    "p": "7"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "1",
+    "sold": "8",
+    "rest": "10",
+    "p": "7"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_profit_cooldown"
+   ],
+   "vars": {
+    "prices": "[2, 1, 4, 5, 2, 9, 7]",
+    "hold": "1",
+    "sold": "8",
+    "rest": "10",
+    "p": "7"
+   },
+   "ret": "10"
+  }
+ ]
+}

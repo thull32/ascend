@@ -1,0 +1,664 @@
+{
+ "problem": "meeting-rooms-ii",
+ "block": 1,
+ "version": 2,
+ "source": "77b94b924b80ed2a",
+ "code": "def min_meeting_rooms(intervals: list[list[int]]) -> int:\n    starts = sorted(iv[0] for iv in intervals)\n    ends = sorted(iv[1] for iv in intervals)\n    rooms = 0\n    e = 0\n    for s in starts:\n        if s >= ends[e]:\n            e += 1          # a meeting ended before (or as) this one starts: reuse\n        else:\n            rooms += 1      # still all busy: open a new room\n    return rooms\n",
+ "args": [
+  [
+   [
+    1,
+    10
+   ],
+   [
+    2,
+    7
+   ],
+   [
+    3,
+    19
+   ],
+   [
+    8,
+    12
+   ],
+   [
+    10,
+    20
+   ],
+   [
+    11,
+    30
+   ]
+  ]
+ ],
+ "result": "4",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[1, 10]"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[1, 10]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[2, 7]"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[2, 7]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[3, 19]"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[3, 19]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[8, 12]"
+   },
+   "ret": "8"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[8, 12]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[10, 20]"
+   },
+   "ret": "10"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[10, 20]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[11, 30]"
+   },
+   "ret": "11"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[11, 30]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[11, 30]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[1, 10]"
+   },
+   "ret": "10"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[1, 10]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[2, 7]"
+   },
+   "ret": "7"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[2, 7]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[3, 19]"
+   },
+   "ret": "19"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[3, 19]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[8, 12]"
+   },
+   "ret": "12"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[8, 12]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[10, 20]"
+   },
+   "ret": "20"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[10, 20]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[11, 30]"
+   },
+   "ret": "30"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[11, 30]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_meeting_rooms",
+    "<genexpr>"
+   ],
+   "vars": {
+    "iv": "[11, 30]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "0",
+    "e": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "0",
+    "e": "0",
+    "s": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "0",
+    "e": "0",
+    "s": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "1",
+    "e": "0",
+    "s": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "1",
+    "e": "0",
+    "s": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "1",
+    "e": "0",
+    "s": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "2",
+    "e": "0",
+    "s": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "2",
+    "e": "0",
+    "s": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "2",
+    "e": "0",
+    "s": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "3",
+    "e": "0",
+    "s": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "3",
+    "e": "0",
+    "s": "8"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "3",
+    "e": "0",
+    "s": "8"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "3",
+    "e": "1",
+    "s": "8"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "3",
+    "e": "1",
+    "s": "10"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "3",
+    "e": "1",
+    "s": "10"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "3",
+    "e": "2",
+    "s": "10"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "3",
+    "e": "2",
+    "s": "11"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "3",
+    "e": "2",
+    "s": "11"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "4",
+    "e": "2",
+    "s": "11"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "4",
+    "e": "2",
+    "s": "11"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_meeting_rooms"
+   ],
+   "vars": {
+    "intervals": "[[1, 10], [2, 7], [3, 19], [8, 12], [10, 20], [11, 30]]",
+    "starts": "[1, 2, 3, 8, 10, 11]",
+    "ends": "[7, 10, 12, 19, 20, 30]",
+    "rooms": "4",
+    "e": "2",
+    "s": "11"
+   },
+   "ret": "4"
+  }
+ ]
+}

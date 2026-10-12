@@ -1,0 +1,416 @@
+{
+ "problem": "linked-list-cycle",
+ "block": 1,
+ "version": 2,
+ "source": "d437cbe1246a8f5d",
+ "code": "def has_cycle(values: list[int], pos: int) -> bool:\n    # scaffolding: build the list and close the cycle\n    nodes = [ListNode(v) for v in values]\n    for i in range(len(nodes) - 1):\n        nodes[i].next = nodes[i + 1]\n    if nodes and pos != -1:\n        nodes[-1].next = nodes[pos]\n    head = nodes[0] if nodes else None\n\n    # detection: Floyd's tortoise and hare\n    slow = fast = head\n    while fast is not None and fast.next is not None:\n        slow = slow.next\n        fast = fast.next.next\n        if slow is fast:\n            return True\n    return False\n",
+ "args": [
+  [
+   3,
+   2,
+   0,
+   -4
+  ],
+  1
+ ],
+ "result": "true",
+ "frames": [
+  {
+   "line": 3,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "v": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "v": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "v": "0"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "v": "-4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3, 2, 0, -4]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3, 2, 0, -4]",
+    "i": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2, 2, 0, -4]",
+    "i": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2, 2, 0, -4]",
+    "i": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0, 2 → 0, 0, -4]",
+    "i": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0, 2 → 0, 0, -4]",
+    "i": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4, 2 → 0 → -4, 0 → -4, -4]",
+    "i": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4, 2 → 0 → -4, 0 → -4, -4]",
+    "i": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4, 2 → 0 → -4, 0 → -4, -4]",
+    "i": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "fast": "3 → 2 → 0 → -4 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "fast": "3 → 2 → 0 → -4 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "2 → 0 → -4 → (back to an earlier node)",
+    "fast": "3 → 2 → 0 → -4 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "2 → 0 → -4 → (back to an earlier node)",
+    "fast": "0 → -4 → 2 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "2 → 0 → -4 → (back to an earlier node)",
+    "fast": "0 → -4 → 2 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "2 → 0 → -4 → (back to an earlier node)",
+    "fast": "0 → -4 → 2 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "0 → -4 → 2 → (back to an earlier node)",
+    "fast": "0 → -4 → 2 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "0 → -4 → 2 → (back to an earlier node)",
+    "fast": "2 → 0 → -4 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "0 → -4 → 2 → (back to an earlier node)",
+    "fast": "2 → 0 → -4 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "0 → -4 → 2 → (back to an earlier node)",
+    "fast": "2 → 0 → -4 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "-4 → 2 → 0 → (back to an earlier node)",
+    "fast": "2 → 0 → -4 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "-4 → 2 → 0 → (back to an earlier node)",
+    "fast": "-4 → 2 → 0 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "-4 → 2 → 0 → (back to an earlier node)",
+    "fast": "-4 → 2 → 0 → (back to an earlier node)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "has_cycle"
+   ],
+   "vars": {
+    "values": "[3, 2, 0, -4]",
+    "pos": "1",
+    "nodes": "[3 → 2 → 0 → -4 → (back to an earlier node), 2 → 0 → -4 → (back to an earlier node), 0 → -4 → 2 → (back to an earlier node), -4 → 2 → 0 → (back to an earlier n…",
+    "i": "2",
+    "head": "3 → 2 → 0 → -4 → (back to an earlier node)",
+    "slow": "-4 → 2 → 0 → (back to an earlier node)",
+    "fast": "-4 → 2 → 0 → (back to an earlier node)"
+   },
+   "ret": "True"
+  }
+ ]
+}

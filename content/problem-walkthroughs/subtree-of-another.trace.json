@@ -1,0 +1,705 @@
+{
+ "problem": "subtree-of-another",
+ "block": 1,
+ "version": 2,
+ "source": "01f768ee39c55983",
+ "code": "def is_subtree(root: TreeNode | None, sub: TreeNode | None) -> bool:\n    def same(a, b):\n        if a is None and b is None:\n            return True\n        if a is None or b is None or a.val != b.val:\n            return False\n        return same(a.left, b.left) and same(a.right, b.right)\n\n    if root is None:\n        return sub is None\n    if same(root, sub):\n        return True\n    return is_subtree(root.left, sub) or is_subtree(root.right, sub)\n",
+ "args": [
+  {
+   "$tree": [
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "$tree": [
+    1,
+    2
+   ]
+  }
+ ],
+ "result": "false",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(1)",
+    "b": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(1)",
+    "b": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(1)",
+    "b": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(2)",
+    "b": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(2)",
+    "b": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(2)",
+    "b": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "None",
+    "b": "None"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "None",
+    "b": "None"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "None",
+    "b": "None"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "None",
+    "b": "None"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "None",
+    "b": "None"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "None",
+    "b": "None"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(2)",
+    "b": "TreeNode(2)"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(3)",
+    "b": "None"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(3)",
+    "b": "None"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(3)",
+    "b": "None"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_subtree",
+    "same",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(3)",
+    "b": "None"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(1)",
+    "b": "TreeNode(1)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(2)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(2)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(2)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(2)",
+    "b": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(2)",
+    "b": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(2)",
+    "b": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(2)",
+    "b": "TreeNode(1)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(2)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(2)",
+    "sub": "TreeNode(1)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(3)",
+    "b": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(3)",
+    "b": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(3)",
+    "b": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "same"
+   ],
+   "vars": {
+    "a": "TreeNode(3)",
+    "b": "TreeNode(1)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_subtree",
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "None",
+    "sub": "TreeNode(1)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_subtree",
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "sub": "TreeNode(1)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_subtree"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "sub": "TreeNode(1)"
+   },
+   "ret": "False"
+  }
+ ]
+}

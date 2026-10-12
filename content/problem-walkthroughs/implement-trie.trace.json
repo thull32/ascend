@@ -1,0 +1,1065 @@
+{
+ "problem": "implement-trie",
+ "block": 1,
+ "version": 2,
+ "source": "2f80ddd2a5d5a654",
+ "code": "class TrieNode:\n    __slots__ = (\"children\", \"end\")\n\n    def __init__(self):\n        self.children: dict[str, \"TrieNode\"] = {}\n        self.end = False\n\n\nclass Trie:\n    def __init__(self):\n        self.root = TrieNode()\n\n    def insert(self, word: str) -> None:\n        node = self.root\n        for ch in word:\n            if ch not in node.children:\n                node.children[ch] = TrieNode()\n            node = node.children[ch]\n        node.end = True\n\n    def _walk(self, s: str):\n        node = self.root\n        for ch in s:\n            node = node.children.get(ch)\n            if node is None:\n                return None\n        return node\n\n    def search(self, word: str) -> bool:\n        node = self._walk(word)\n        return node is not None and node.end\n\n    def starts_with(self, prefix: str) -> bool:\n        return self._walk(prefix) is not None\n",
+ "args": [
+  [
+   "insert",
+   "car"
+  ],
+  [
+   "insert",
+   "cat"
+  ],
+  [
+   "search",
+   "ca"
+  ],
+  [
+   "starts_with",
+   "ca"
+  ],
+  [
+   "search",
+   "cat"
+  ]
+ ],
+ "result": "[null, null, false, true, true]",
+ "frames": [
+  {
+   "line": 11,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 5,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 6,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "__init__",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}",
+    "self.end": "False"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={}, end=False)"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={}, end=False)",
+    "word": "'car'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 6,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}",
+    "self.end": "False"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 6,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}",
+    "self.end": "False"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'r'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'r'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 6,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}",
+    "self.end": "False"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={'r': TrieNode(end=False)}, end=False)",
+    "ch": "'r'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'r'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'r'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'car'",
+    "node": "TrieNode(children={}, end=True)",
+    "ch": "'r'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'r': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'r': TrieNode(end=True)}, end=False)",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'r': TrieNode(end=True)}, end=False)",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 6,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "insert",
+    "__init__"
+   ],
+   "vars": {
+    "self.children": "{}",
+    "self.end": "False"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=False)}, end=False)",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={}, end=False)",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={}, end=True)",
+    "ch": "'t'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 30,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'ca'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   },
+   "ret": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)"
+  },
+  {
+   "line": 31,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 34,
+   "stack": [
+    "starts_with"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "prefix": "'ca'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "starts_with",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'ca'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   },
+   "ret": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)"
+  },
+  {
+   "line": 34,
+   "stack": [
+    "starts_with"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "prefix": "'ca'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 30,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'c'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={'a': TrieNode(end=False)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={'r': TrieNode(end=True), 't': TrieNode(end=True)}, end=False)",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={}, end=True)",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={}, end=True)",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={}, end=True)",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "search",
+    "_walk"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "s": "'cat'",
+    "node": "TrieNode(children={}, end=True)",
+    "ch": "'t'"
+   },
+   "ret": "TrieNode(children={}, end=True)"
+  },
+  {
+   "line": 31,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={}, end=True)"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "search"
+   ],
+   "vars": {
+    "self.root": "TrieNode(children={'c': TrieNode(end=False)}, end=False)",
+    "word": "'cat'",
+    "node": "TrieNode(children={}, end=True)"
+   },
+   "ret": "True"
+  }
+ ]
+}

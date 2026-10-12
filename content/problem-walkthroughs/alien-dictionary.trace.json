@@ -1,0 +1,1143 @@
+{
+ "problem": "alien-dictionary",
+ "block": 1,
+ "version": 2,
+ "source": "8cb8fa0f247b1137",
+ "code": "from collections import deque\n\ndef alien_order(words: list[str]) -> str:\n    succ: dict[str, set[str]] = {ch: set() for w in words for ch in w}\n    indegree = {ch: 0 for ch in succ}\n\n    for w1, w2 in zip(words, words[1:]):\n        for a, b in zip(w1, w2):\n            if a != b:\n                if b not in succ[a]:\n                    succ[a].add(b)\n                    indegree[b] += 1\n                break                        # only the first difference counts\n        else:\n            if len(w1) > len(w2):            # w2 is a proper prefix of w1\n                return \"\"\n\n    ready = deque(ch for ch in succ if indegree[ch] == 0)\n    out: list[str] = []\n    while ready:\n        ch = ready.popleft()\n        out.append(ch)\n        for nxt in succ[ch]:\n            indegree[nxt] -= 1\n            if indegree[nxt] == 0:\n                ready.append(nxt)\n    return \"\".join(out) if len(out) == len(succ) else \"\"\n",
+ "args": [
+  [
+   "xz",
+   "yx",
+   "yz",
+   "zy"
+  ]
+ ],
+ "result": "\"xyz\"",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'xz'",
+    "ch": "'x'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'xz'",
+    "ch": "'z'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'xz'",
+    "ch": "'z'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'yx'",
+    "ch": "'y'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'yx'",
+    "ch": "'x'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'yx'",
+    "ch": "'x'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'yz'",
+    "ch": "'y'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'yz'",
+    "ch": "'z'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'yz'",
+    "ch": "'z'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'zy'",
+    "ch": "'z'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'zy'",
+    "ch": "'y'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "w": "'zy'",
+    "ch": "'y'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': set(), 'z': set(), 'y': set()}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': set(), 'z': set(), 'y': set()}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'z'",
+    "succ": "{'x': set(), 'z': set(), 'y': set()}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'y'",
+    "succ": "{'x': set(), 'z': set(), 'y': set()}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': set(), 'z': set(), 'y': set()}",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': set(), 'z': set(), 'y': set()}",
+    "w1": "'xz'",
+    "w2": "'yx'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': set(), 'z': set(), 'y': set()}",
+    "w1": "'xz'",
+    "w2": "'yx'",
+    "a": "'x'",
+    "b": "'y'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': set(), 'z': set(), 'y': set()}",
+    "w1": "'xz'",
+    "w2": "'yx'",
+    "a": "'x'",
+    "b": "'y'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': set(), 'z': set(), 'y': set()}",
+    "w1": "'xz'",
+    "w2": "'yx'",
+    "a": "'x'",
+    "b": "'y'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y'}, 'z': set(), 'y': set()}",
+    "w1": "'xz'",
+    "w2": "'yx'",
+    "a": "'x'",
+    "b": "'y'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y'}, 'z': set(), 'y': set()}",
+    "w1": "'xz'",
+    "w2": "'yx'",
+    "a": "'x'",
+    "b": "'y'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 1}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y'}, 'z': set(), 'y': set()}",
+    "w1": "'xz'",
+    "w2": "'yx'",
+    "a": "'x'",
+    "b": "'y'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 1}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y'}, 'z': set(), 'y': set()}",
+    "w1": "'yx'",
+    "w2": "'yz'",
+    "a": "'x'",
+    "b": "'y'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 1}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y'}, 'z': set(), 'y': set()}",
+    "w1": "'yx'",
+    "w2": "'yz'",
+    "a": "'y'",
+    "b": "'y'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 1}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y'}, 'z': set(), 'y': set()}",
+    "w1": "'yx'",
+    "w2": "'yz'",
+    "a": "'y'",
+    "b": "'y'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 1}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y'}, 'z': set(), 'y': set()}",
+    "w1": "'yx'",
+    "w2": "'yz'",
+    "a": "'x'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 1}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y'}, 'z': set(), 'y': set()}",
+    "w1": "'yx'",
+    "w2": "'yz'",
+    "a": "'x'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 1}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y'}, 'z': set(), 'y': set()}",
+    "w1": "'yx'",
+    "w2": "'yz'",
+    "a": "'x'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 1}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': set()}",
+    "w1": "'yx'",
+    "w2": "'yz'",
+    "a": "'x'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 1}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': set()}",
+    "w1": "'yx'",
+    "w2": "'yz'",
+    "a": "'x'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 1}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': set()}",
+    "w1": "'yx'",
+    "w2": "'yz'",
+    "a": "'x'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 1}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': set()}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'x'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 1}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': set()}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 1}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': set()}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 1}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': set()}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 1}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 1}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "alien_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "alien_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "ch": "'x'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   },
+   "ret": "'x'"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "alien_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "ch": "'x'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "alien_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "ch": "'z'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "alien_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "ch": "'y'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "alien_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "ch": "'y'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['x'])",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['x'])",
+    "out": "[]",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['x'])",
+    "out": "[]",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "[]",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x']",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x']",
+    "nxt": "'y'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 1}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x']",
+    "nxt": "'y'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 0}"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x']",
+    "nxt": "'y'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 0}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['y'])",
+    "out": "['x']",
+    "nxt": "'y'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 0}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['y'])",
+    "out": "['x']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 2, 'y': 0}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['y'])",
+    "out": "['x']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 0}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['y'])",
+    "out": "['x']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 0}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['y'])",
+    "out": "['x']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 0}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'x'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['y'])",
+    "out": "['x']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 0}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'y'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 0}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'y'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x', 'y']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 0}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'y'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x', 'y']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 1, 'y': 0}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'y'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x', 'y']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'y'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x', 'y']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'y'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['z'])",
+    "out": "['x', 'y']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'y'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['z'])",
+    "out": "['x', 'y']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'y'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque(['z'])",
+    "out": "['x', 'y']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'z'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x', 'y']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'z'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x', 'y', 'z']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'z'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x', 'y', 'z']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'z'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x', 'y', 'z']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "alien_order"
+   ],
+   "vars": {
+    "words": "['xz', 'yx', 'yz', 'zy']",
+    "ch": "'z'",
+    "succ": "{'x': {'y', 'z'}, 'z': set(), 'y': {'z'}}",
+    "w1": "'yz'",
+    "w2": "'zy'",
+    "a": "'y'",
+    "b": "'z'",
+    "ready": "deque([])",
+    "out": "['x', 'y', 'z']",
+    "nxt": "'z'",
+    "indegree": "{'x': 0, 'z': 0, 'y': 0}"
+   },
+   "ret": "'xyz'"
+  }
+ ]
+}

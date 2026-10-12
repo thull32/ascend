@@ -1,0 +1,184 @@
+{
+ "problem": "house-robber",
+ "block": 2,
+ "version": 2,
+ "source": "24a773c00203c05f",
+ "code": "def rob(nums: list[int]) -> int:\n    two_back, one_back = 0, 0            # best[i - 2], best[i - 1]\n    for x in nums:\n        two_back, one_back = one_back, max(one_back, two_back + x)\n    return one_back\n",
+ "args": [
+  [
+   1,
+   3,
+   1,
+   3,
+   100
+  ]
+ ],
+ "result": "103",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "0",
+    "one_back": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "0",
+    "one_back": "0",
+    "x": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "0",
+    "one_back": "1",
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "0",
+    "one_back": "1",
+    "x": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "1",
+    "one_back": "3",
+    "x": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "1",
+    "one_back": "3",
+    "x": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "3",
+    "one_back": "3",
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "3",
+    "one_back": "3",
+    "x": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "3",
+    "one_back": "6",
+    "x": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "3",
+    "one_back": "6",
+    "x": "100"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "6",
+    "one_back": "103",
+    "x": "100"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "6",
+    "one_back": "103",
+    "x": "100"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "rob"
+   ],
+   "vars": {
+    "nums": "[1, 3, 1, 3, 100]",
+    "two_back": "6",
+    "one_back": "103",
+    "x": "100"
+   },
+   "ret": "103"
+  }
+ ]
+}

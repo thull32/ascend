@@ -1,0 +1,263 @@
+{
+ "problem": "same-tree",
+ "block": 1,
+ "version": 2,
+ "source": "af3ab1f57845f37d",
+ "code": "def is_same_tree(p: TreeNode | None, q: TreeNode | None) -> bool:\n    if p is None and q is None:\n        return True\n    if p is None or q is None:\n        return False\n    if p.val != q.val:\n        return False\n    return is_same_tree(p.left, q.left) and is_same_tree(p.right, q.right)\n",
+ "args": [
+  {
+   "$tree": [
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "$tree": [
+    1,
+    2,
+    4
+   ]
+  }
+ ],
+ "result": "false",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(1)",
+    "q": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(1)",
+    "q": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(1)",
+    "q": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(1)",
+    "q": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(2)",
+    "q": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(2)",
+    "q": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(2)",
+    "q": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(2)",
+    "q": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "None",
+    "q": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "None",
+    "q": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "None",
+    "q": "None"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "None",
+    "q": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "None",
+    "q": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "None",
+    "q": "None"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(2)",
+    "q": "TreeNode(2)"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(3)",
+    "q": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(3)",
+    "q": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(3)",
+    "q": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(3)",
+    "q": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_same_tree",
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(3)",
+    "q": "TreeNode(4)"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_same_tree"
+   ],
+   "vars": {
+    "p": "TreeNode(1)",
+    "q": "TreeNode(1)"
+   },
+   "ret": "False"
+  }
+ ]
+}

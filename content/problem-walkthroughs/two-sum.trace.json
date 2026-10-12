@@ -1,0 +1,207 @@
+{
+ "problem": "two-sum",
+ "block": 1,
+ "version": 2,
+ "source": "78807cc35129ebea",
+ "code": "def two_sum(nums: list[int], target: int) -> list[int]:\n    seen: dict[int, int] = {}\n    for i, x in enumerate(nums):\n        need = target - x\n        if need in seen:\n            return [seen[need], i]\n        seen[x] = i\n    return []  # unreachable given the problem guarantee\n",
+ "args": [
+  [
+   3,
+   2,
+   4
+  ],
+  6
+ ],
+ "result": "[1, 2]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{}",
+    "i": "0",
+    "x": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{}",
+    "i": "0",
+    "x": "3",
+    "need": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{}",
+    "i": "0",
+    "x": "3",
+    "need": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{3: 0}",
+    "i": "0",
+    "x": "3",
+    "need": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{3: 0}",
+    "i": "1",
+    "x": "2",
+    "need": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{3: 0}",
+    "i": "1",
+    "x": "2",
+    "need": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{3: 0}",
+    "i": "1",
+    "x": "2",
+    "need": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{3: 0, 2: 1}",
+    "i": "1",
+    "x": "2",
+    "need": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{3: 0, 2: 1}",
+    "i": "2",
+    "x": "4",
+    "need": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{3: 0, 2: 1}",
+    "i": "2",
+    "x": "4",
+    "need": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{3: 0, 2: 1}",
+    "i": "2",
+    "x": "4",
+    "need": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "two_sum"
+   ],
+   "vars": {
+    "nums": "[3, 2, 4]",
+    "target": "6",
+    "seen": "{3: 0, 2: 1}",
+    "i": "2",
+    "x": "4",
+    "need": "2"
+   },
+   "ret": "[1, 2]"
+  }
+ ]
+}

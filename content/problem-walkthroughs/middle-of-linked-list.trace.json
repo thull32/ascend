@@ -1,0 +1,164 @@
+{
+ "problem": "middle-of-linked-list",
+ "block": 1,
+ "version": 2,
+ "source": "6e2f358b48cfd36c",
+ "code": "def middle_node(head: ListNode | None) -> ListNode | None:\n    slow = fast = head\n    while fast is not None and fast.next is not None:\n        slow = slow.next\n        fast = fast.next.next\n    return slow\n",
+ "args": [
+  {
+   "$list": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ]
+  }
+ ],
+ "result": "{\"$list\": [4, 5, 6]}",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "1 → 2 → 3 → 4 → 5 → 6",
+    "fast": "1 → 2 → 3 → 4 → 5 → 6"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "1 → 2 → 3 → 4 → 5 → 6",
+    "fast": "1 → 2 → 3 → 4 → 5 → 6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "2 → 3 → 4 → 5 → 6",
+    "fast": "1 → 2 → 3 → 4 → 5 → 6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "2 → 3 → 4 → 5 → 6",
+    "fast": "3 → 4 → 5 → 6"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "2 → 3 → 4 → 5 → 6",
+    "fast": "3 → 4 → 5 → 6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "3 → 4 → 5 → 6",
+    "fast": "3 → 4 → 5 → 6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "3 → 4 → 5 → 6",
+    "fast": "5 → 6"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "3 → 4 → 5 → 6",
+    "fast": "5 → 6"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "4 → 5 → 6",
+    "fast": "5 → 6"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "4 → 5 → 6",
+    "fast": "None"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "4 → 5 → 6",
+    "fast": "None"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "middle_node"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5 → 6",
+    "slow": "4 → 5 → 6",
+    "fast": "None"
+   },
+   "ret": "4 → 5 → 6"
+  }
+ ]
+}

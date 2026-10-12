@@ -1,0 +1,778 @@
+{
+ "problem": "course-schedule-ii",
+ "block": 1,
+ "version": 2,
+ "source": "4fcd6f359482a504",
+ "code": "from collections import deque\n\ndef find_order(num_courses: int, prerequisites: list[list[int]]) -> list[int]:\n    unlocks: list[list[int]] = [[] for _ in range(num_courses)]\n    indegree = [0] * num_courses\n    for course, pre in prerequisites:\n        unlocks[pre].append(course)\n        indegree[course] += 1\n\n    ready = deque(c for c in range(num_courses) if indegree[c] == 0)\n    order: list[int] = []\n    while ready:\n        c = ready.popleft()\n        order.append(c)\n        for nxt in unlocks[c]:\n            indegree[nxt] -= 1\n            if indegree[nxt] == 0:\n                ready.append(nxt)\n    return order if len(order) == num_courses else []\n",
+ "args": [
+  3,
+  [
+   [
+    0,
+    1
+   ],
+   [
+    0,
+    2
+   ],
+   [
+    1,
+    2
+   ]
+  ]
+ ],
+ "result": "[2, 1, 0]",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "_": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "_": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "_": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [], []]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [], []]",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [], []]",
+    "course": "0",
+    "pre": "1",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], []]",
+    "course": "0",
+    "pre": "1",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], []]",
+    "course": "0",
+    "pre": "1",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], []]",
+    "course": "0",
+    "pre": "2",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0]]",
+    "course": "0",
+    "pre": "2",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0]]",
+    "course": "0",
+    "pre": "2",
+    "indegree": "[2, 0, 0]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0]]",
+    "course": "1",
+    "pre": "2",
+    "indegree": "[2, 0, 0]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "indegree": "[2, 0, 0]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "0",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "1",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "2",
+    "indegree": "[2, 1, 0]"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "2",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "find_order",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "2",
+    "indegree": "[2, 1, 0]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([2])",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([2])",
+    "order": "[]",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([2])",
+    "order": "[]",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[]",
+    "c": "2",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2]",
+    "c": "2",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2]",
+    "c": "2",
+    "nxt": "0",
+    "indegree": "[2, 1, 0]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2]",
+    "c": "2",
+    "nxt": "0",
+    "indegree": "[1, 1, 0]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2]",
+    "c": "2",
+    "nxt": "0",
+    "indegree": "[1, 1, 0]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2]",
+    "c": "2",
+    "nxt": "1",
+    "indegree": "[1, 1, 0]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2]",
+    "c": "2",
+    "nxt": "1",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2]",
+    "c": "2",
+    "nxt": "1",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([1])",
+    "order": "[2]",
+    "c": "2",
+    "nxt": "1",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([1])",
+    "order": "[2]",
+    "c": "2",
+    "nxt": "1",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([1])",
+    "order": "[2]",
+    "c": "2",
+    "nxt": "1",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2]",
+    "c": "1",
+    "nxt": "1",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2, 1]",
+    "c": "1",
+    "nxt": "1",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2, 1]",
+    "c": "1",
+    "nxt": "0",
+    "indegree": "[1, 0, 0]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2, 1]",
+    "c": "1",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2, 1]",
+    "c": "1",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([0])",
+    "order": "[2, 1]",
+    "c": "1",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([0])",
+    "order": "[2, 1]",
+    "c": "1",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([0])",
+    "order": "[2, 1]",
+    "c": "1",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2, 1]",
+    "c": "0",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2, 1, 0]",
+    "c": "0",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2, 1, 0]",
+    "c": "0",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2, 1, 0]",
+    "c": "0",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "find_order"
+   ],
+   "vars": {
+    "num_courses": "3",
+    "prerequisites": "[[0, 1], [0, 2], [1, 2]]",
+    "unlocks": "[[], [0], [0, 1]]",
+    "course": "1",
+    "pre": "2",
+    "ready": "deque([])",
+    "order": "[2, 1, 0]",
+    "c": "0",
+    "nxt": "0",
+    "indegree": "[0, 0, 0]"
+   },
+   "ret": "[2, 1, 0]"
+  }
+ ]
+}

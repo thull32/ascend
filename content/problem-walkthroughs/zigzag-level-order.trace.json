@@ -1,0 +1,834 @@
+{
+ "problem": "zigzag-level-order",
+ "block": 1,
+ "version": 2,
+ "source": "00535d956998fa6d",
+ "code": "from collections import deque\n\ndef zigzag_level_order(root: TreeNode | None) -> list[list[int]]:\n    if root is None:\n        return []\n    result: list[list[int]] = []\n    queue = deque([root])\n    left_to_right = True\n    while queue:\n        level: deque[int] = deque()\n        for _ in range(len(queue)):\n            node = queue.popleft()\n            if left_to_right:\n                level.append(node.val)\n            else:\n                level.appendleft(node.val)\n            if node.left is not None:\n                queue.append(node.left)\n            if node.right is not None:\n                queue.append(node.right)\n        result.append(list(level))\n        left_to_right = not left_to_right\n    return result\n",
+ "args": [
+  {
+   "$tree": [
+    3,
+    9,
+    20,
+    null,
+    null,
+    15,
+    7
+   ]
+  }
+ ],
+ "result": "[[3], [20, 9], [15, 7]]",
+ "frames": [
+  {
+   "line": 4,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([TreeNode(3)])"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([TreeNode(3)])",
+    "left_to_right": "True"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([TreeNode(3)])",
+    "left_to_right": "True"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([TreeNode(3)])",
+    "left_to_right": "True",
+    "level": "deque([])"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([TreeNode(3)])",
+    "left_to_right": "True",
+    "level": "deque([])",
+    "_": "0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([3])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([3])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([TreeNode(9)])",
+    "left_to_right": "True",
+    "level": "deque([3])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([TreeNode(9)])",
+    "left_to_right": "True",
+    "level": "deque([3])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([TreeNode(9), TreeNode(20)])",
+    "left_to_right": "True",
+    "level": "deque([3])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[]",
+    "queue": "deque([TreeNode(9), TreeNode(20)])",
+    "left_to_right": "True",
+    "level": "deque([3])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(9), TreeNode(20)])",
+    "left_to_right": "True",
+    "level": "deque([3])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(9), TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([3])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(9), TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([3])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(9), TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(9), TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([])",
+    "_": "0",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([])",
+    "_": "0",
+    "node": "TreeNode(9)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([])",
+    "_": "0",
+    "node": "TreeNode(9)"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([9])",
+    "_": "0",
+    "node": "TreeNode(9)"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([9])",
+    "_": "0",
+    "node": "TreeNode(9)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([9])",
+    "_": "0",
+    "node": "TreeNode(9)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(20)])",
+    "left_to_right": "False",
+    "level": "deque([9])",
+    "_": "1",
+    "node": "TreeNode(9)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([])",
+    "left_to_right": "False",
+    "level": "deque([9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([])",
+    "left_to_right": "False",
+    "level": "deque([9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([])",
+    "left_to_right": "False",
+    "level": "deque([20, 9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([])",
+    "left_to_right": "False",
+    "level": "deque([20, 9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(15)])",
+    "left_to_right": "False",
+    "level": "deque([20, 9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(15)])",
+    "left_to_right": "False",
+    "level": "deque([20, 9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(15), TreeNode(7)])",
+    "left_to_right": "False",
+    "level": "deque([20, 9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3]]",
+    "queue": "deque([TreeNode(15), TreeNode(7)])",
+    "left_to_right": "False",
+    "level": "deque([20, 9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(15), TreeNode(7)])",
+    "left_to_right": "False",
+    "level": "deque([20, 9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(15), TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([20, 9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(15), TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([20, 9])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(15), TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([])",
+    "_": "1",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(15), TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([])",
+    "_": "0",
+    "node": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([])",
+    "_": "0",
+    "node": "TreeNode(15)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([])",
+    "_": "0",
+    "node": "TreeNode(15)"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([15])",
+    "_": "0",
+    "node": "TreeNode(15)"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([15])",
+    "_": "0",
+    "node": "TreeNode(15)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([15])",
+    "_": "0",
+    "node": "TreeNode(15)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([TreeNode(7)])",
+    "left_to_right": "True",
+    "level": "deque([15])",
+    "_": "1",
+    "node": "TreeNode(15)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([15])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([15])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([15, 7])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([15, 7])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([15, 7])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9]]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([15, 7])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9], [15, 7]]",
+    "queue": "deque([])",
+    "left_to_right": "True",
+    "level": "deque([15, 7])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9], [15, 7]]",
+    "queue": "deque([])",
+    "left_to_right": "False",
+    "level": "deque([15, 7])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9], [15, 7]]",
+    "queue": "deque([])",
+    "left_to_right": "False",
+    "level": "deque([15, 7])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "zigzag_level_order"
+   ],
+   "vars": {
+    "root": "TreeNode(3)",
+    "result": "[[3], [20, 9], [15, 7]]",
+    "queue": "deque([])",
+    "left_to_right": "False",
+    "level": "deque([15, 7])",
+    "_": "1",
+    "node": "TreeNode(7)"
+   },
+   "ret": "[[3], [20, 9], [15, 7]]"
+  }
+ ]
+}

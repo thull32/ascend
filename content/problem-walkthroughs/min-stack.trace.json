@@ -1,0 +1,298 @@
+{
+ "problem": "min-stack",
+ "block": 1,
+ "version": 2,
+ "source": "6b78d51aa2df8493",
+ "code": "class MinStack:\n    def __init__(self):\n        self.vals: list[int] = []\n        self.mins: list[int] = []\n\n    def push(self, val: int) -> None:\n        self.vals.append(val)\n        current_min = val if not self.mins else min(val, self.mins[-1])\n        self.mins.append(current_min)\n\n    def pop(self) -> None:\n        self.vals.pop()\n        self.mins.pop()\n\n    def top(self) -> int:\n        return self.vals[-1]\n\n    def get_min(self) -> int:\n        return self.mins[-1]\n",
+ "args": [
+  [
+   "push",
+   -2
+  ],
+  [
+   "push",
+   0
+  ],
+  [
+   "push",
+   -3
+  ],
+  [
+   "get_min"
+  ],
+  [
+   "pop"
+  ],
+  [
+   "top"
+  ],
+  [
+   "get_min"
+  ]
+ ],
+ "result": "[null, null, null, -3, null, 0, -2]",
+ "frames": [
+  {
+   "line": 3,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 4,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.vals": "[]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.vals": "[]",
+    "self.mins": "[]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[]",
+    "self.mins": "[]",
+    "val": "-2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2]",
+    "self.mins": "[]",
+    "val": "-2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2]",
+    "self.mins": "[]",
+    "val": "-2",
+    "current_min": "-2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2]",
+    "self.mins": "[-2]",
+    "val": "-2",
+    "current_min": "-2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2]",
+    "self.mins": "[-2]",
+    "val": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2]",
+    "val": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2]",
+    "val": "0",
+    "current_min": "-2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2, -2]",
+    "val": "0",
+    "current_min": "-2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2, -2]",
+    "val": "-3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0, -3]",
+    "self.mins": "[-2, -2]",
+    "val": "-3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0, -3]",
+    "self.mins": "[-2, -2]",
+    "val": "-3",
+    "current_min": "-3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "push"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0, -3]",
+    "self.mins": "[-2, -2, -3]",
+    "val": "-3",
+    "current_min": "-3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get_min"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0, -3]",
+    "self.mins": "[-2, -2, -3]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get_min"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0, -3]",
+    "self.mins": "[-2, -2, -3]"
+   },
+   "ret": "-3"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "pop"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0, -3]",
+    "self.mins": "[-2, -2, -3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "pop"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2, -2, -3]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "pop"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2, -2]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "top"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2, -2]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "top"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2, -2]"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get_min"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2, -2]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "get_min"
+   ],
+   "vars": {
+    "self.vals": "[-2, 0]",
+    "self.mins": "[-2, -2]"
+   },
+   "ret": "-2"
+  }
+ ]
+}

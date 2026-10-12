@@ -1,0 +1,1219 @@
+{
+ "problem": "construct-from-preorder-inorder",
+ "block": 1,
+ "version": 2,
+ "source": "668cce7fb302b6ba",
+ "code": "def build_tree(preorder: list[int], inorder: list[int]) -> TreeNode | None:\n    index = {v: i for i, v in enumerate(inorder)}\n    pre_pos = 0\n\n    def build(lo: int, hi: int) -> TreeNode | None:\n        nonlocal pre_pos\n        if lo >= hi:\n            return None\n        val = preorder[pre_pos]\n        pre_pos += 1\n        node = TreeNode(val)\n        mid = index[val]\n        node.left = build(lo, mid)        # must build left first\n        node.right = build(mid + 1, hi)\n        return node\n\n    return build(0, len(inorder))\n",
+ "args": [
+  [
+   3,
+   9,
+   20,
+   15,
+   7
+  ],
+  [
+   9,
+   3,
+   15,
+   20,
+   7
+  ]
+ ],
+ "result": "{\"$tree\": [3, 9, 20, null, null, 15, 7]}",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]",
+    "i": "0",
+    "v": "9"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]",
+    "i": "1",
+    "v": "3"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]",
+    "i": "2",
+    "v": "15"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]",
+    "i": "3",
+    "v": "20"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]",
+    "i": "4",
+    "v": "7"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "0"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "5",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "0",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "build_tree",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "5",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "0",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "build_tree",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "5",
+    "val": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "0",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "build_tree",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "5",
+    "val": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "1",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "build_tree",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "5",
+    "val": "3",
+    "node": "TreeNode(3)",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "1",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "build_tree",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "5",
+    "val": "3",
+    "node": "TreeNode(3)",
+    "mid": "1",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "1",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "1",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "1",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "1",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "1",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "1",
+    "val": "9",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "1",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "1",
+    "val": "9",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "1",
+    "val": "9",
+    "node": "TreeNode(9)",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "1",
+    "val": "9",
+    "node": "TreeNode(9)",
+    "mid": "0",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "0",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "0",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "0",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "1",
+    "val": "9",
+    "node": "TreeNode(9)",
+    "mid": "0",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "1",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "1",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "1",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "1",
+    "val": "9",
+    "node": "TreeNode(9)",
+    "mid": "0",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "1",
+    "val": "9",
+    "node": "TreeNode(9)",
+    "mid": "0",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "TreeNode(9)"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "build_tree",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "5",
+    "val": "3",
+    "node": "TreeNode(3)",
+    "mid": "1",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "5",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "5",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "5",
+    "val": "20",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "2",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "5",
+    "val": "20",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "3",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "5",
+    "val": "20",
+    "node": "TreeNode(20)",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "3",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "5",
+    "val": "20",
+    "node": "TreeNode(20)",
+    "mid": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "3",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "3",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "3",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "3",
+    "val": "15",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "3",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "3",
+    "val": "15",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "3",
+    "val": "15",
+    "node": "TreeNode(15)",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "3",
+    "val": "15",
+    "node": "TreeNode(15)",
+    "mid": "2",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "2",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "2",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "2",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "3",
+    "val": "15",
+    "node": "TreeNode(15)",
+    "mid": "2",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "3",
+    "hi": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "3",
+    "hi": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "3",
+    "hi": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "3",
+    "val": "15",
+    "node": "TreeNode(15)",
+    "mid": "2",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "3",
+    "val": "15",
+    "node": "TreeNode(15)",
+    "mid": "2",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "TreeNode(15)"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "5",
+    "val": "20",
+    "node": "TreeNode(20)",
+    "mid": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "5",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "5",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "5",
+    "val": "7",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "4",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "5",
+    "val": "7",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "5",
+    "val": "7",
+    "node": "TreeNode(7)",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "5",
+    "val": "7",
+    "node": "TreeNode(7)",
+    "mid": "4",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "4",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "4",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "4",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "5",
+    "val": "7",
+    "node": "TreeNode(7)",
+    "mid": "4",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "5",
+    "hi": "5",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "5",
+    "hi": "5",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "5",
+    "hi": "5",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "5",
+    "val": "7",
+    "node": "TreeNode(7)",
+    "mid": "4",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "4",
+    "hi": "5",
+    "val": "7",
+    "node": "TreeNode(7)",
+    "mid": "4",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "TreeNode(7)"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "5",
+    "val": "20",
+    "node": "TreeNode(20)",
+    "mid": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "lo": "2",
+    "hi": "5",
+    "val": "20",
+    "node": "TreeNode(20)",
+    "mid": "3",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "TreeNode(20)"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "5",
+    "val": "3",
+    "node": "TreeNode(3)",
+    "mid": "1",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "build_tree",
+    "build"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "5",
+    "val": "3",
+    "node": "TreeNode(3)",
+    "mid": "1",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5",
+    "preorder": "[3, 9, 20, 15, 7]"
+   },
+   "ret": "TreeNode(3)"
+  },
+  {
+   "line": 17,
+   "stack": [
+    "build_tree"
+   ],
+   "vars": {
+    "preorder": "[3, 9, 20, 15, 7]",
+    "inorder": "[9, 3, 15, 20, 7]",
+    "index": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}",
+    "pre_pos": "5"
+   },
+   "ret": "TreeNode(3)"
+  }
+ ]
+}

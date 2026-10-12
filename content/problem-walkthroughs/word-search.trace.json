@@ -1,0 +1,1027 @@
+{
+ "problem": "word-search",
+ "block": 1,
+ "version": 2,
+ "source": "320e0e86238a59dd",
+ "code": "def exist(board: list[list[str]], word: str) -> bool:\n    rows, cols = len(board), len(board[0])\n\n    def dfs(r: int, c: int, i: int) -> bool:\n        if board[r][c] != word[i]:\n            return False\n        if i == len(word) - 1:\n            return True\n        saved = board[r][c]\n        board[r][c] = \"#\"\n        found = (\n            (r > 0 and dfs(r - 1, c, i + 1))\n            or (r + 1 < rows and dfs(r + 1, c, i + 1))\n            or (c > 0 and dfs(r, c - 1, i + 1))\n            or (c + 1 < cols and dfs(r, c + 1, i + 1))\n        )\n        board[r][c] = saved\n        return found\n\n    return any(dfs(r, c, 0) for r in range(rows) for c in range(cols))\n",
+ "args": [
+  [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "c",
+    "d"
+   ]
+  ],
+  "abdc"
+ ],
+ "result": "true",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "exist"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "exist"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "word": "'abdc'",
+    "cols": "2",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "exist"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "word": "'abdc'",
+    "cols": "2",
+    "rows": "2"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "exist",
+    "<genexpr>"
+   ],
+   "vars": {
+    "cols": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "i": "1",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "i": "1",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "i": "1",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "saved": "'b'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "saved": "'b'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "saved": "'b'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "3",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "3",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "3",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "i": "3",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "i": "3",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "i": "3",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "0",
+    "i": "3",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "found": "True",
+    "board": "[['#', '#'], ['c', '#']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "found": "True",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "1",
+    "c": "1",
+    "i": "2",
+    "saved": "'d'",
+    "found": "True",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "saved": "'b'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "saved": "'b'",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "saved": "'b'",
+    "found": "True",
+    "board": "[['#', '#'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "saved": "'b'",
+    "found": "True",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "1",
+    "i": "1",
+    "saved": "'b'",
+    "found": "True",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "found": "True",
+    "board": "[['#', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "found": "True",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "exist",
+    "<genexpr>",
+    "dfs"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "i": "0",
+    "saved": "'a'",
+    "found": "True",
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "cols": "2",
+    "rows": "2",
+    "word": "'abdc'"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 20,
+   "stack": [
+    "exist",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "cols": "2"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 20,
+   "stack": [
+    "exist",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "0",
+    "c": "0",
+    "cols": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 20,
+   "stack": [
+    "exist"
+   ],
+   "vars": {
+    "board": "[['a', 'b'], ['c', 'd']]",
+    "word": "'abdc'",
+    "cols": "2",
+    "rows": "2"
+   },
+   "ret": "True"
+  }
+ ]
+}

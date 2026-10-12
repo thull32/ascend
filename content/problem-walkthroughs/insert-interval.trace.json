@@ -1,0 +1,389 @@
+{
+ "problem": "insert-interval",
+ "block": 1,
+ "version": 2,
+ "source": "b6bd6d6b24b073f5",
+ "code": "def insert(intervals: list[list[int]], new_interval: list[int]) -> list[list[int]]:\n    start, end = new_interval\n    result: list[list[int]] = []\n    i, n = 0, len(intervals)\n\n    # 1. everything that ends before the new interval starts\n    while i < n and intervals[i][1] < start:\n        result.append(intervals[i])\n        i += 1\n\n    # 2. everything that overlaps: widen the new interval\n    while i < n and intervals[i][0] <= end:\n        start = min(start, intervals[i][0])\n        end = max(end, intervals[i][1])\n        i += 1\n    result.append([start, end])\n\n    # 3. everything that starts after the new interval ends\n    result.extend(intervals[i:])\n    return result\n",
+ "args": [
+  [
+   [
+    1,
+    2
+   ],
+   [
+    3,
+    5
+   ],
+   [
+    6,
+    7
+   ],
+   [
+    8,
+    10
+   ],
+   [
+    12,
+    16
+   ]
+  ],
+  [
+   4,
+   8
+  ]
+ ],
+ "result": "[[1, 2], [3, 10], [12, 16]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "4",
+    "end": "8"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "4",
+    "end": "8",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "4",
+    "end": "8",
+    "result": "[]",
+    "i": "0",
+    "n": "5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "4",
+    "end": "8",
+    "result": "[]",
+    "i": "0",
+    "n": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "4",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "0",
+    "n": "5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "4",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "1",
+    "n": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "4",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "1",
+    "n": "5"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "4",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "1",
+    "n": "5"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "1",
+    "n": "5"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "1",
+    "n": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "2",
+    "n": "5"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "2",
+    "n": "5"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "2",
+    "n": "5"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "2",
+    "n": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "3",
+    "n": "5"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "3",
+    "n": "5"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "8",
+    "result": "[[1, 2]]",
+    "i": "3",
+    "n": "5"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "10",
+    "result": "[[1, 2]]",
+    "i": "3",
+    "n": "5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "10",
+    "result": "[[1, 2]]",
+    "i": "4",
+    "n": "5"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "10",
+    "result": "[[1, 2]]",
+    "i": "4",
+    "n": "5"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "10",
+    "result": "[[1, 2], [3, 10]]",
+    "i": "4",
+    "n": "5"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "10",
+    "result": "[[1, 2], [3, 10], [12, 16]]",
+    "i": "4",
+    "n": "5"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "insert"
+   ],
+   "vars": {
+    "intervals": "[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]",
+    "new_interval": "[4, 8]",
+    "start": "3",
+    "end": "10",
+    "result": "[[1, 2], [3, 10], [12, 16]]",
+    "i": "4",
+    "n": "5"
+   },
+   "ret": "[[1, 2], [3, 10], [12, 16]]"
+  }
+ ]
+}

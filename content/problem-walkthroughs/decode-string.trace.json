@@ -1,0 +1,697 @@
+{
+ "problem": "decode-string",
+ "block": 1,
+ "version": 2,
+ "source": "2d856ba5be2ca680",
+ "code": "def decode_string(s: str) -> str:\n    stack: list[tuple[str, int]] = []  # (outer partial string, repeat count)\n    current: list[str] = []            # characters of the partial string being built\n    count = 0\n    for ch in s:\n        if ch.isdigit():\n            count = count * 10 + int(ch)\n        elif ch == \"[\":\n            stack.append((\"\".join(current), count))\n            current = []\n            count = 0\n        elif ch == \"]\":\n            outer, k = stack.pop()\n            current = [outer + \"\".join(current) * k]\n        else:\n            current.append(ch)\n    return \"\".join(current)\n",
+ "args": [
+  "2[a3[b]c]"
+ ],
+ "result": "\"abbbcabbbc\"",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "[]",
+    "count": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'2'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'2'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "[]",
+    "count": "2",
+    "ch": "'2'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "[]",
+    "count": "2",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "[]",
+    "count": "2",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "[]",
+    "count": "2",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "[]",
+    "count": "2",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "[]",
+    "count": "2",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['a']",
+    "count": "0",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['a']",
+    "count": "0",
+    "ch": "'3'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['a']",
+    "count": "0",
+    "ch": "'3'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['a']",
+    "count": "3",
+    "ch": "'3'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['a']",
+    "count": "3",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['a']",
+    "count": "3",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['a']",
+    "count": "3",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "['a']",
+    "count": "3",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "[]",
+    "count": "3",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'['"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "[]",
+    "count": "0",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "['b']",
+    "count": "0",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "['b']",
+    "count": "0",
+    "ch": "']'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "['b']",
+    "count": "0",
+    "ch": "']'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "['b']",
+    "count": "0",
+    "ch": "']'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2), ('a', 3)]",
+    "current": "['b']",
+    "count": "0",
+    "ch": "']'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['b']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb']",
+    "count": "0",
+    "ch": "'c'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb']",
+    "count": "0",
+    "ch": "'c'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb']",
+    "count": "0",
+    "ch": "'c'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb']",
+    "count": "0",
+    "ch": "'c'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb', 'c']",
+    "count": "0",
+    "ch": "'c'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb', 'c']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb', 'c']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb', 'c']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[('', 2)]",
+    "current": "['abbb', 'c']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "'a'",
+    "k": "3"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "['abbb', 'c']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "''",
+    "k": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "['abbbcabbbc']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "''",
+    "k": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "['abbbcabbbc']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "''",
+    "k": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "decode_string"
+   ],
+   "vars": {
+    "s": "'2[a3[b]c]'",
+    "stack": "[]",
+    "current": "['abbbcabbbc']",
+    "count": "0",
+    "ch": "']'",
+    "outer": "''",
+    "k": "2"
+   },
+   "ret": "'abbbcabbbc'"
+  }
+ ]
+}

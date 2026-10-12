@@ -1,0 +1,705 @@
+{
+ "problem": "generate-parentheses",
+ "block": 1,
+ "version": 2,
+ "source": "fca19be5b46646fd",
+ "code": "def generate_parentheses(n: int) -> list[str]:\n    out: list[str] = []\n\n    def build(prefix: str, opened: int, closed: int) -> None:\n        if len(prefix) == 2 * n:\n            out.append(prefix)\n            return\n        if opened < n:\n            build(prefix + \"(\", opened + 1, closed)\n        if closed < opened:\n            build(prefix + \")\", opened, closed + 1)\n\n    build(\"\", 0, 0)\n    return out\n",
+ "args": [
+  2
+ ],
+ "result": "[\"(())\", \"()()\"]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "generate_parentheses"
+   ],
+   "vars": {
+    "n": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "generate_parentheses"
+   ],
+   "vars": {
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "generate_parentheses"
+   ],
+   "vars": {
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_parentheses",
+    "build"
+   ],
+   "vars": {
+    "prefix": "''",
+    "opened": "0",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "generate_parentheses",
+    "build"
+   ],
+   "vars": {
+    "prefix": "''",
+    "opened": "0",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "generate_parentheses",
+    "build"
+   ],
+   "vars": {
+    "prefix": "''",
+    "opened": "0",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'('",
+    "opened": "1",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'('",
+    "opened": "1",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'('",
+    "opened": "1",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(('",
+    "opened": "2",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(('",
+    "opened": "2",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(('",
+    "opened": "2",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(('",
+    "opened": "2",
+    "closed": "0",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(()'",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(()'",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(()'",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(()'",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(())'",
+    "opened": "2",
+    "closed": "2",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(())'",
+    "opened": "2",
+    "closed": "2",
+    "n": "2",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(())'",
+    "opened": "2",
+    "closed": "2",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(())'",
+    "opened": "2",
+    "closed": "2",
+    "n": "2",
+    "out": "['(())']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(()'",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'(('",
+    "opened": "2",
+    "closed": "0",
+    "n": "2",
+    "out": "['(())']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'('",
+    "opened": "1",
+    "closed": "0",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'('",
+    "opened": "1",
+    "closed": "0",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()'",
+    "opened": "1",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()'",
+    "opened": "1",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()'",
+    "opened": "1",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()('",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()('",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()('",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()('",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()()'",
+    "opened": "2",
+    "closed": "2",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()()'",
+    "opened": "2",
+    "closed": "2",
+    "n": "2",
+    "out": "['(())']"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()()'",
+    "opened": "2",
+    "closed": "2",
+    "n": "2",
+    "out": "['(())', '()()']"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()()'",
+    "opened": "2",
+    "closed": "2",
+    "n": "2",
+    "out": "['(())', '()()']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()('",
+    "opened": "2",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())', '()()']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()'",
+    "opened": "1",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())', '()()']"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'()'",
+    "opened": "1",
+    "closed": "1",
+    "n": "2",
+    "out": "['(())', '()()']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_parentheses",
+    "build",
+    "build"
+   ],
+   "vars": {
+    "prefix": "'('",
+    "opened": "1",
+    "closed": "0",
+    "n": "2",
+    "out": "['(())', '()()']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_parentheses",
+    "build"
+   ],
+   "vars": {
+    "prefix": "''",
+    "opened": "0",
+    "closed": "0",
+    "n": "2",
+    "out": "['(())', '()()']"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_parentheses",
+    "build"
+   ],
+   "vars": {
+    "prefix": "''",
+    "opened": "0",
+    "closed": "0",
+    "n": "2",
+    "out": "['(())', '()()']"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "generate_parentheses"
+   ],
+   "vars": {
+    "n": "2",
+    "out": "['(())', '()()']"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "generate_parentheses"
+   ],
+   "vars": {
+    "n": "2",
+    "out": "['(())', '()()']"
+   },
+   "ret": "['(())', '()()']"
+  }
+ ]
+}

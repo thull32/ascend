@@ -1,0 +1,397 @@
+{
+ "problem": "max-depth-binary-tree",
+ "block": 1,
+ "version": 2,
+ "source": "0a7cfda60b195dd6",
+ "code": "def max_depth(root: TreeNode | None) -> int:\n    if root is None:\n        return 0\n    return 1 + max(max_depth(root.left), max_depth(root.right))\n",
+ "args": [
+  {
+   "$tree": [
+    3,
+    9,
+    20,
+    null,
+    null,
+    15,
+    7
+   ]
+  }
+ ],
+ "result": "3",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(9)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(9)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(9)"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(20)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(15)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(15)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(15)"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(7)"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 2,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "None"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth",
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(7)"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth",
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(20)"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_depth"
+   ],
+   "vars": {
+    "root": "TreeNode(3)"
+   },
+   "ret": "3"
+  }
+ ]
+}

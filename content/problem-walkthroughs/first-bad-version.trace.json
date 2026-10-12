@@ -1,0 +1,210 @@
+{
+ "problem": "first-bad-version",
+ "block": 1,
+ "version": 2,
+ "source": "84aa2de5f862da19",
+ "code": "def first_bad_version(is_bad: list[bool]) -> int:\n    lo, hi = 0, len(is_bad) - 1\n    while lo < hi:\n        mid = lo + (hi - lo) // 2\n        if is_bad[mid]:\n            hi = mid          # first bad is mid or earlier\n        else:\n            lo = mid + 1      # first bad is after mid\n    return lo\n",
+ "args": [
+  [
+   false,
+   false,
+   false,
+   false,
+   false,
+   true,
+   true,
+   true
+  ]
+ ],
+ "result": "5",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "0",
+    "hi": "7"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "0",
+    "hi": "7"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "0",
+    "hi": "7",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "0",
+    "hi": "7",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "4",
+    "hi": "7",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "4",
+    "hi": "7",
+    "mid": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "4",
+    "hi": "7",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "4",
+    "hi": "7",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "4",
+    "hi": "5",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "4",
+    "hi": "5",
+    "mid": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "4",
+    "hi": "5",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "4",
+    "hi": "5",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "5",
+    "hi": "5",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "5",
+    "hi": "5",
+    "mid": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "first_bad_version"
+   ],
+   "vars": {
+    "is_bad": "[False, False, False, False, False, True, True, True]",
+    "lo": "5",
+    "hi": "5",
+    "mid": "4"
+   },
+   "ret": "5"
+  }
+ ]
+}

@@ -1,0 +1,285 @@
+{
+ "problem": "valid-anagram",
+ "block": 1,
+ "version": 2,
+ "source": "2e07e303e0f033cb",
+ "code": "def is_anagram(s: str, t: str) -> bool:\n    if len(s) != len(t):\n        return False\n    counts: dict[str, int] = {}\n    for ch in s:\n        counts[ch] = counts.get(ch, 0) + 1\n    for ch in t:\n        c = counts.get(ch, 0) - 1\n        if c < 0:\n            return False\n        counts[ch] = c\n    return True\n",
+ "args": [
+  "aab",
+  "abb"
+ ],
+ "result": "false",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 2}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 2}",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 2, 'b': 1}",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 2, 'b': 1}",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 2, 'b': 1}",
+    "ch": "'a'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 2, 'b': 1}",
+    "ch": "'a'",
+    "c": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 2, 'b': 1}",
+    "ch": "'a'",
+    "c": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1, 'b': 1}",
+    "ch": "'a'",
+    "c": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1, 'b': 1}",
+    "ch": "'b'",
+    "c": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1, 'b': 1}",
+    "ch": "'b'",
+    "c": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1, 'b': 1}",
+    "ch": "'b'",
+    "c": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1, 'b': 0}",
+    "ch": "'b'",
+    "c": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1, 'b': 0}",
+    "ch": "'b'",
+    "c": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1, 'b': 0}",
+    "ch": "'b'",
+    "c": "-1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1, 'b': 0}",
+    "ch": "'b'",
+    "c": "-1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_anagram"
+   ],
+   "vars": {
+    "s": "'aab'",
+    "t": "'abb'",
+    "counts": "{'a': 1, 'b': 0}",
+    "ch": "'b'",
+    "c": "-1"
+   },
+   "ret": "False"
+  }
+ ]
+}

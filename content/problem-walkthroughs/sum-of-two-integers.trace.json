@@ -1,0 +1,330 @@
+{
+ "problem": "sum-of-two-integers",
+ "block": 1,
+ "version": 2,
+ "source": "1ded9a4de127041e",
+ "code": "MASK = 0xFFFFFFFF        # keep 32 bits\nINT_MAX = 0x7FFFFFFF     # largest positive 32-bit signed value\n\n\ndef get_sum(a: int, b: int) -> int:\n    a &= MASK\n    b &= MASK\n    while b:\n        carry = ((a & b) << 1) & MASK   # carries, with bit 32 dropped\n        a = (a ^ b) & MASK              # sum without carries\n        b = carry\n    # a is now a 32-bit pattern; reinterpret bit 31 as the sign.\n    return a if a <= INT_MAX else ~(a ^ MASK)\n",
+ "args": [
+  15,
+  17
+ ],
+ "result": "32",
+ "frames": [
+  {
+   "line": 6,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "15",
+    "b": "17"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "15",
+    "b": "17"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "15",
+    "b": "17"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "15",
+    "b": "17"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "15",
+    "b": "17",
+    "carry": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "30",
+    "b": "17",
+    "carry": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "30",
+    "b": "2",
+    "carry": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "30",
+    "b": "2",
+    "carry": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "30",
+    "b": "2",
+    "carry": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "28",
+    "b": "2",
+    "carry": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "28",
+    "b": "4",
+    "carry": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "28",
+    "b": "4",
+    "carry": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "28",
+    "b": "4",
+    "carry": "8"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "24",
+    "b": "4",
+    "carry": "8"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "24",
+    "b": "8",
+    "carry": "8"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "24",
+    "b": "8",
+    "carry": "8"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "24",
+    "b": "8",
+    "carry": "16"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "16",
+    "b": "8",
+    "carry": "16"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "16",
+    "b": "16",
+    "carry": "16"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "16",
+    "b": "16",
+    "carry": "16"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "16",
+    "b": "16",
+    "carry": "32"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "0",
+    "b": "16",
+    "carry": "32"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "0",
+    "b": "32",
+    "carry": "32"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "0",
+    "b": "32",
+    "carry": "32"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "0",
+    "b": "32",
+    "carry": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "32",
+    "b": "32",
+    "carry": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "32",
+    "b": "0",
+    "carry": "0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "32",
+    "b": "0",
+    "carry": "0"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "get_sum"
+   ],
+   "vars": {
+    "a": "32",
+    "b": "0",
+    "carry": "0"
+   },
+   "ret": "32"
+  }
+ ]
+}

@@ -1,0 +1,171 @@
+{
+ "problem": "single-number",
+ "block": 1,
+ "version": 2,
+ "source": "5187f47e6537ed3a",
+ "code": "def single_number(nums: list[int]) -> int:\n    acc = 0\n    for x in nums:\n        acc ^= x\n    return acc\n",
+ "args": [
+  [
+   7,
+   3,
+   5,
+   3,
+   7
+  ]
+ ],
+ "result": "5",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "0",
+    "x": "7"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "7",
+    "x": "7"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "7",
+    "x": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "4",
+    "x": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "4",
+    "x": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "1",
+    "x": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "1",
+    "x": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "2",
+    "x": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "2",
+    "x": "7"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "5",
+    "x": "7"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "5",
+    "x": "7"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "single_number"
+   ],
+   "vars": {
+    "nums": "[7, 3, 5, 3, 7]",
+    "acc": "5",
+    "x": "7"
+   },
+   "ret": "5"
+  }
+ ]
+}

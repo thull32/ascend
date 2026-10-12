@@ -1,0 +1,1541 @@
+{
+ "problem": "surrounded-regions",
+ "block": 1,
+ "version": 2,
+ "source": "2fc5f26e8c314040",
+ "code": "def capture_regions(board: list[list[str]]) -> list[list[str]]:\n    if not board or not board[0]:\n        return board\n    rows, cols = len(board), len(board[0])\n\n    def mark_safe(r0: int, c0: int) -> None:\n        if board[r0][c0] != \"O\":\n            return\n        board[r0][c0] = \"#\"\n        stack = [(r0, c0)]\n        while stack:\n            r, c = stack.pop()\n            for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):\n                if 0 <= nr < rows and 0 <= nc < cols and board[nr][nc] == \"O\":\n                    board[nr][nc] = \"#\"\n                    stack.append((nr, nc))\n\n    for r in range(rows):\n        mark_safe(r, 0)\n        mark_safe(r, cols - 1)\n    for c in range(cols):\n        mark_safe(0, c)\n        mark_safe(rows - 1, c)\n\n    for r in range(rows):\n        for c in range(cols):\n            if board[r][c] == \"O\":\n                board[r][c] = \"X\"\n            elif board[r][c] == \"#\":\n                board[r][c] = \"O\"\n    return board\n",
+ "args": [
+  [
+   [
+    "O",
+    "X",
+    "X"
+   ],
+   [
+    "X",
+    "O",
+    "X"
+   ],
+   [
+    "X",
+    "X",
+    "X"
+   ]
+  ]
+ ],
+ "result": "[[\"O\", \"X\", \"X\"], [\"X\", \"X\", \"X\"], [\"X\", \"X\", \"X\"]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[(0, 0)]",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[(0, 0)]",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "1",
+    "nc": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "1",
+    "nc": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "-1",
+    "nc": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "-1",
+    "nc": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "stack": "[]",
+    "r": "0",
+    "c": "0",
+    "nr": "0",
+    "nc": "-1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 20,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "1",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "1",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "1",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 20,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "1",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "1",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "1",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 20,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 18,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 23,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "0",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 21,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 23,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "1",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 21,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "0",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 23,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "capture_regions",
+    "mark_safe"
+   ],
+   "vars": {
+    "r0": "2",
+    "c0": "2",
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 21,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['#', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "0",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'O', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "1",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "0",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "1",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "capture_regions"
+   ],
+   "vars": {
+    "board": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]",
+    "r": "2",
+    "c": "2",
+    "cols": "3",
+    "rows": "3"
+   },
+   "ret": "[['O', 'X', 'X'], ['X', 'X', 'X'], ['X', 'X', 'X']]"
+  }
+ ]
+}

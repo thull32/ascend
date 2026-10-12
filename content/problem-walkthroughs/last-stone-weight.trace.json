@@ -1,0 +1,359 @@
+{
+ "problem": "last-stone-weight",
+ "block": 1,
+ "version": 2,
+ "source": "1a5b5b404513350c",
+ "code": "def last_stone_weight(stones: list[int]) -> int:\n    heap = [-s for s in stones]\n    heapq.heapify(heap)\n    while len(heap) > 1:\n        y = -heapq.heappop(heap)\n        x = -heapq.heappop(heap)\n        if y != x:\n            heapq.heappush(heap, -(y - x))\n    return -heap[0] if heap else 0\n",
+ "args": [
+  [
+   2,
+   7,
+   4,
+   1,
+   8,
+   1
+  ]
+ ],
+ "result": "1",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "s": "2"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "s": "7"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "s": "4"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "s": "1"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "s": "8"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "s": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-2, -7, -4, -1, -8, -1]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-8, -7, -4, -1, -2, -1]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-8, -7, -4, -1, -2, -1]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-7, -2, -4, -1, -1]",
+    "y": "8"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-4, -2, -1, -1]",
+    "y": "8",
+    "x": "7"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-4, -2, -1, -1]",
+    "y": "8",
+    "x": "7"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-4, -2, -1, -1, -1]",
+    "y": "8",
+    "x": "7"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-4, -2, -1, -1, -1]",
+    "y": "8",
+    "x": "7"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-2, -1, -1, -1]",
+    "y": "4",
+    "x": "7"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1, -1, -1]",
+    "y": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1, -1, -1]",
+    "y": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-2, -1, -1, -1]",
+    "y": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-2, -1, -1, -1]",
+    "y": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1, -1, -1]",
+    "y": "2",
+    "x": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1, -1]",
+    "y": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1, -1]",
+    "y": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1, -1, -1]",
+    "y": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1, -1, -1]",
+    "y": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1, -1]",
+    "y": "1",
+    "x": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1]",
+    "y": "1",
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1]",
+    "y": "1",
+    "x": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1]",
+    "y": "1",
+    "x": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "last_stone_weight"
+   ],
+   "vars": {
+    "stones": "[2, 7, 4, 1, 8, 1]",
+    "heap": "[-1]",
+    "y": "1",
+    "x": "1"
+   },
+   "ret": "1"
+  }
+ ]
+}

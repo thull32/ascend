@@ -1,0 +1,1111 @@
+{
+ "problem": "reverse-nodes-k-group",
+ "block": 1,
+ "version": 2,
+ "source": "5d41348c8bbf76f1",
+ "code": "def reverse_k_group(head: ListNode | None, k: int) -> ListNode | None:\n    dummy = ListNode(0, head)\n    group_prev = dummy\n\n    while True:\n        # 1. is there a full group ahead?\n        kth = group_prev\n        for _ in range(k):\n            kth = kth.next\n            if kth is None:\n                return dummy.next\n        group_next = kth.next\n\n        # 2-3. reverse exactly k nodes, landing on group_next\n        prev, cur = group_next, group_prev.next\n        for _ in range(k):\n            nxt = cur.next\n            cur.next = prev\n            prev = cur\n            cur = nxt\n\n        # 4. reconnect\n        first = group_prev.next   # old first node, now the group's tail\n        group_prev.next = kth\n        group_prev = first\n",
+ "args": [
+  {
+   "$list": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ]
+  },
+  2
+ ],
+ "result": "{\"$list\": [2, 1, 4, 3, 5]}",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "0 → 1 → 2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "1 → 2 → 3 → 4 → 5",
+    "_": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "1 → 2 → 3 → 4 → 5",
+    "_": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "1 → 2 → 3 → 4 → 5",
+    "_": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "3 → 4 → 5",
+    "cur": "1 → 2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "0",
+    "group_next": "3 → 4 → 5",
+    "prev": "3 → 4 → 5",
+    "cur": "1 → 2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 2 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "0",
+    "group_next": "3 → 4 → 5",
+    "prev": "3 → 4 → 5",
+    "cur": "1 → 2 → 3 → 4 → 5",
+    "nxt": "2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "0",
+    "group_next": "3 → 4 → 5",
+    "prev": "3 → 4 → 5",
+    "cur": "1 → 3 → 4 → 5",
+    "nxt": "2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "0",
+    "group_next": "3 → 4 → 5",
+    "prev": "1 → 3 → 4 → 5",
+    "cur": "1 → 3 → 4 → 5",
+    "nxt": "2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "0",
+    "group_next": "3 → 4 → 5",
+    "prev": "1 → 3 → 4 → 5",
+    "cur": "2 → 3 → 4 → 5",
+    "nxt": "2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "1 → 3 → 4 → 5",
+    "cur": "2 → 3 → 4 → 5",
+    "nxt": "2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "1 → 3 → 4 → 5",
+    "cur": "2 → 3 → 4 → 5",
+    "nxt": "3 → 4 → 5"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 1 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "1 → 3 → 4 → 5",
+    "cur": "2 → 1 → 3 → 4 → 5",
+    "nxt": "3 → 4 → 5"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 1 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "2 → 1 → 3 → 4 → 5",
+    "nxt": "3 → 4 → 5"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 1 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 1 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 1 → 3 → 4 → 5",
+    "kth": "2 → 1 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "0 → 2 → 1 → 3 → 4 → 5",
+    "kth": "2 → 1 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "2 → 1 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "2 → 1 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "1 → 3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "1 → 3 → 4 → 5",
+    "_": "0",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "3 → 4 → 5",
+    "_": "0",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "3 → 4 → 5",
+    "_": "0",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "3 → 4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "4 → 5",
+    "_": "1",
+    "group_next": "3 → 4 → 5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "4 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "2 → 1 → 3 → 4 → 5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "4 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "4 → 5",
+    "_": "0",
+    "group_next": "5",
+    "prev": "5",
+    "cur": "3 → 4 → 5",
+    "nxt": "3 → 4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 4 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 4 → 5",
+    "group_prev": "1 → 3 → 4 → 5",
+    "kth": "4 → 5",
+    "_": "0",
+    "group_next": "5",
+    "prev": "5",
+    "cur": "3 → 4 → 5",
+    "nxt": "4 → 5",
+    "first": "1 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 5",
+    "_": "0",
+    "group_next": "5",
+    "prev": "5",
+    "cur": "3 → 5",
+    "nxt": "4 → 5",
+    "first": "1 → 3 → 5"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 5",
+    "_": "0",
+    "group_next": "5",
+    "prev": "3 → 5",
+    "cur": "3 → 5",
+    "nxt": "4 → 5",
+    "first": "1 → 3 → 5"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 5",
+    "_": "0",
+    "group_next": "5",
+    "prev": "3 → 5",
+    "cur": "4 → 5",
+    "nxt": "4 → 5",
+    "first": "1 → 3 → 5"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "3 → 5",
+    "cur": "4 → 5",
+    "nxt": "4 → 5",
+    "first": "1 → 3 → 5"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "3 → 5",
+    "cur": "4 → 5",
+    "nxt": "5",
+    "first": "1 → 3 → 5"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 3 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "3 → 5",
+    "cur": "4 → 3 → 5",
+    "nxt": "5",
+    "first": "1 → 3 → 5"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 3 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "4 → 3 → 5",
+    "nxt": "5",
+    "first": "1 → 3 → 5"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 3 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "1 → 3 → 5"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 3 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "1 → 3 → 5"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 3 → 5",
+    "group_prev": "1 → 3 → 5",
+    "kth": "4 → 3 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "1 → 4 → 3 → 5",
+    "kth": "4 → 3 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "4 → 3 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "4 → 3 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "3 → 5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "3 → 5",
+    "_": "0",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "5",
+    "_": "0",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "5",
+    "_": "0",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "5",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "None",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "None",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "reverse_k_group"
+   ],
+   "vars": {
+    "head": "1 → 4 → 3 → 5",
+    "k": "2",
+    "dummy": "0 → 2 → 1 → 4 → 3 → 5",
+    "group_prev": "3 → 5",
+    "kth": "None",
+    "_": "1",
+    "group_next": "5",
+    "prev": "4 → 3 → 5",
+    "cur": "5",
+    "nxt": "5",
+    "first": "3 → 5"
+   },
+   "ret": "2 → 1 → 4 → 3 → 5"
+  }
+ ]
+}

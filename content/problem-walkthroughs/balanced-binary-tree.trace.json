@@ -1,0 +1,646 @@
+{
+ "problem": "balanced-binary-tree",
+ "block": 1,
+ "version": 2,
+ "source": "1273e606bf25ee44",
+ "code": "def is_balanced(root: TreeNode | None) -> bool:\n    UNBALANCED = -1\n\n    def height(node: TreeNode | None) -> int:\n        if node is None:\n            return 0\n        l = height(node.left)\n        if l == UNBALANCED:\n            return UNBALANCED\n        r = height(node.right)\n        if r == UNBALANCED:\n            return UNBALANCED\n        if abs(l - r) > 1:\n            return UNBALANCED\n        return 1 + max(l, r)\n\n    return height(root) != UNBALANCED\n",
+ "args": [
+  {
+   "$tree": [
+    1,
+    2,
+    2,
+    3,
+    null,
+    null,
+    3,
+    4,
+    null,
+    null,
+    4
+   ]
+  }
+ ],
+ "result": "false",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "is_balanced"
+   ],
+   "vars": {
+    "root": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_balanced"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "is_balanced"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_balanced",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_balanced",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(2)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(2)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "l": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "l": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "l": "0",
+    "r": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "l": "0",
+    "r": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "l": "0",
+    "r": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "l": "0",
+    "r": "0",
+    "UNBALANCED": "-1"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "l": "1",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "l": "1",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "l": "1",
+    "r": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "l": "1",
+    "r": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "l": "1",
+    "r": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "l": "1",
+    "r": "0",
+    "UNBALANCED": "-1"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(2)",
+    "l": "2",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(2)",
+    "l": "2",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "None",
+    "UNBALANCED": "-1"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(2)",
+    "l": "2",
+    "r": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(2)",
+    "l": "2",
+    "r": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(2)",
+    "l": "2",
+    "r": "0",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_balanced",
+    "height",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(2)",
+    "l": "2",
+    "r": "0",
+    "UNBALANCED": "-1"
+   },
+   "ret": "-1"
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_balanced",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "l": "-1",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_balanced",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "l": "-1",
+    "UNBALANCED": "-1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_balanced",
+    "height"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "l": "-1",
+    "UNBALANCED": "-1"
+   },
+   "ret": "-1"
+  },
+  {
+   "line": 17,
+   "stack": [
+    "is_balanced"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "UNBALANCED": "-1"
+   },
+   "ret": "False"
+  }
+ ]
+}

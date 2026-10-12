@@ -1,0 +1,341 @@
+{
+ "problem": "sort-colors",
+ "block": 1,
+ "version": 2,
+ "source": "954ccb90eec56c44",
+ "code": "def sort_colors(nums: list[int]) -> list[int]:\n    lo, mid, hi = 0, 0, len(nums) - 1\n    while mid <= hi:\n        if nums[mid] == 0:\n            nums[lo], nums[mid] = nums[mid], nums[lo]\n            lo += 1\n            mid += 1\n        elif nums[mid] == 1:\n            mid += 1\n        else:\n            nums[mid], nums[hi] = nums[hi], nums[mid]\n            hi -= 1\n    return nums\n",
+ "args": [
+  [
+   1,
+   2,
+   0,
+   1,
+   0
+  ]
+ ],
+ "result": "[0, 0, 1, 1, 2]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 2, 0, 1, 0]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 2, 0, 1, 0]",
+    "lo": "0",
+    "mid": "0",
+    "hi": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 2, 0, 1, 0]",
+    "lo": "0",
+    "mid": "0",
+    "hi": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 2, 0, 1, 0]",
+    "lo": "0",
+    "mid": "0",
+    "hi": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 2, 0, 1, 0]",
+    "lo": "0",
+    "mid": "0",
+    "hi": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 2, 0, 1, 0]",
+    "lo": "0",
+    "mid": "1",
+    "hi": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 2, 0, 1, 0]",
+    "lo": "0",
+    "mid": "1",
+    "hi": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 2, 0, 1, 0]",
+    "lo": "0",
+    "mid": "1",
+    "hi": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 2, 0, 1, 0]",
+    "lo": "0",
+    "mid": "1",
+    "hi": "4"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 0, 0, 1, 2]",
+    "lo": "0",
+    "mid": "1",
+    "hi": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 0, 0, 1, 2]",
+    "lo": "0",
+    "mid": "1",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 0, 0, 1, 2]",
+    "lo": "0",
+    "mid": "1",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[1, 0, 0, 1, 2]",
+    "lo": "0",
+    "mid": "1",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 1, 0, 1, 2]",
+    "lo": "0",
+    "mid": "1",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 1, 0, 1, 2]",
+    "lo": "1",
+    "mid": "1",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 1, 0, 1, 2]",
+    "lo": "1",
+    "mid": "2",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 1, 0, 1, 2]",
+    "lo": "1",
+    "mid": "2",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 1, 0, 1, 2]",
+    "lo": "1",
+    "mid": "2",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 2]",
+    "lo": "1",
+    "mid": "2",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 2]",
+    "lo": "2",
+    "mid": "2",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 2]",
+    "lo": "2",
+    "mid": "3",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 2]",
+    "lo": "2",
+    "mid": "3",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 2]",
+    "lo": "2",
+    "mid": "3",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 2]",
+    "lo": "2",
+    "mid": "3",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 2]",
+    "lo": "2",
+    "mid": "4",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 2]",
+    "lo": "2",
+    "mid": "4",
+    "hi": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "sort_colors"
+   ],
+   "vars": {
+    "nums": "[0, 0, 1, 1, 2]",
+    "lo": "2",
+    "mid": "4",
+    "hi": "3"
+   },
+   "ret": "[0, 0, 1, 1, 2]"
+  }
+ ]
+}

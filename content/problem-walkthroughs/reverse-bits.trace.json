@@ -1,0 +1,1120 @@
+{
+ "problem": "reverse-bits",
+ "block": 1,
+ "version": 2,
+ "source": "d8f30f1f97e55f63",
+ "code": "MASK32 = 0xFFFFFFFF\n\n\ndef reverse_bits(n: int) -> int:\n    n &= MASK32                    # treat the input as exactly 32 bits\n    result = 0\n    for _ in range(32):\n        result = (result << 1) | (n & 1)   # push n's lowest bit onto result\n        n >>= 1                            # pop it from n\n    return result & MASK32         # a no-op after exactly 32 rounds, but explicit\n",
+ "args": [
+  6
+ ],
+ "result": "1610612736",
+ "frames": [
+  {
+   "line": 5,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "6"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "6"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "6",
+    "result": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "6",
+    "result": "0",
+    "_": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "6",
+    "result": "0",
+    "_": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "3",
+    "result": "0",
+    "_": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "3",
+    "result": "0",
+    "_": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "3",
+    "result": "1",
+    "_": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "1",
+    "result": "1",
+    "_": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "1",
+    "result": "1",
+    "_": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "1",
+    "result": "3",
+    "_": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "3",
+    "_": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "3",
+    "_": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "6",
+    "_": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "6",
+    "_": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "6",
+    "_": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "12",
+    "_": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "12",
+    "_": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "12",
+    "_": "5"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "24",
+    "_": "5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "24",
+    "_": "5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "24",
+    "_": "6"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "48",
+    "_": "6"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "48",
+    "_": "6"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "48",
+    "_": "7"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "96",
+    "_": "7"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "96",
+    "_": "7"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "96",
+    "_": "8"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "192",
+    "_": "8"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "192",
+    "_": "8"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "192",
+    "_": "9"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "384",
+    "_": "9"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "384",
+    "_": "9"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "384",
+    "_": "10"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "768",
+    "_": "10"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "768",
+    "_": "10"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "768",
+    "_": "11"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1536",
+    "_": "11"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1536",
+    "_": "11"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1536",
+    "_": "12"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "3072",
+    "_": "12"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "3072",
+    "_": "12"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "3072",
+    "_": "13"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "6144",
+    "_": "13"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "6144",
+    "_": "13"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "6144",
+    "_": "14"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "12288",
+    "_": "14"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "12288",
+    "_": "14"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "12288",
+    "_": "15"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "24576",
+    "_": "15"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "24576",
+    "_": "15"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "24576",
+    "_": "16"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "49152",
+    "_": "16"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "49152",
+    "_": "16"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "49152",
+    "_": "17"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "98304",
+    "_": "17"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "98304",
+    "_": "17"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "98304",
+    "_": "18"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "196608",
+    "_": "18"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "196608",
+    "_": "18"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "196608",
+    "_": "19"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "393216",
+    "_": "19"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "393216",
+    "_": "19"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "393216",
+    "_": "20"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "786432",
+    "_": "20"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "786432",
+    "_": "20"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "786432",
+    "_": "21"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1572864",
+    "_": "21"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1572864",
+    "_": "21"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1572864",
+    "_": "22"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "3145728",
+    "_": "22"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "3145728",
+    "_": "22"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "3145728",
+    "_": "23"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "6291456",
+    "_": "23"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "6291456",
+    "_": "23"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "6291456",
+    "_": "24"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "12582912",
+    "_": "24"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "12582912",
+    "_": "24"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "12582912",
+    "_": "25"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "25165824",
+    "_": "25"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "25165824",
+    "_": "25"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "25165824",
+    "_": "26"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "50331648",
+    "_": "26"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "50331648",
+    "_": "26"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "50331648",
+    "_": "27"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "100663296",
+    "_": "27"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "100663296",
+    "_": "27"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "100663296",
+    "_": "28"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "201326592",
+    "_": "28"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "201326592",
+    "_": "28"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "201326592",
+    "_": "29"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "402653184",
+    "_": "29"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "402653184",
+    "_": "29"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "402653184",
+    "_": "30"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "805306368",
+    "_": "30"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "805306368",
+    "_": "30"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "805306368",
+    "_": "31"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1610612736",
+    "_": "31"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1610612736",
+    "_": "31"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1610612736",
+    "_": "31"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "reverse_bits"
+   ],
+   "vars": {
+    "n": "0",
+    "result": "1610612736",
+    "_": "31"
+   },
+   "ret": "1610612736"
+  }
+ ]
+}

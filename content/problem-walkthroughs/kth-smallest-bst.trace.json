@@ -1,0 +1,527 @@
+{
+ "problem": "kth-smallest-bst",
+ "block": 1,
+ "version": 2,
+ "source": "21c1038de6e735d7",
+ "code": "def kth_smallest(root: TreeNode | None, k: int) -> int:\n    stack = []\n    node = root\n    while True:\n        while node is not None:\n            stack.append(node)\n            node = node.left\n        node = stack.pop()\n        k -= 1\n        if k == 0:\n            return node.val\n        node = node.right\n",
+ "args": [
+  {
+   "$tree": [
+    5,
+    3,
+    6,
+    2,
+    4,
+    null,
+    null,
+    1
+   ]
+  },
+  4
+ ],
+ "result": "4",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[]",
+    "node": "TreeNode(5)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[]",
+    "node": "TreeNode(5)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[]",
+    "node": "TreeNode(5)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(5)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3)]",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3)]",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3)]",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2)]",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2)]",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2)]",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2), TreeNode(1)]",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2), TreeNode(1)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2), TreeNode(1)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "4",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2)]",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "3",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2)]",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "3",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2)]",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "3",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "3",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "3",
+    "stack": "[TreeNode(5), TreeNode(3), TreeNode(2)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "3",
+    "stack": "[TreeNode(5), TreeNode(3)]",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "2",
+    "stack": "[TreeNode(5), TreeNode(3)]",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "2",
+    "stack": "[TreeNode(5), TreeNode(3)]",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "2",
+    "stack": "[TreeNode(5), TreeNode(3)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "2",
+    "stack": "[TreeNode(5), TreeNode(3)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "2",
+    "stack": "[TreeNode(5), TreeNode(3)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "2",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "1",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "1",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "1",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "1",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "1",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "1",
+    "stack": "[TreeNode(5), TreeNode(4)]",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "1",
+    "stack": "[TreeNode(5), TreeNode(4)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "1",
+    "stack": "[TreeNode(5), TreeNode(4)]",
+    "node": "None"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "1",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "0",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "0",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(4)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "kth_smallest"
+   ],
+   "vars": {
+    "root": "TreeNode(5)",
+    "k": "0",
+    "stack": "[TreeNode(5)]",
+    "node": "TreeNode(4)"
+   },
+   "ret": "4"
+  }
+ ]
+}

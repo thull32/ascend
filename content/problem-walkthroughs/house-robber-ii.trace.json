@@ -1,0 +1,362 @@
+{
+ "problem": "house-robber-ii",
+ "block": 1,
+ "version": 2,
+ "source": "85c8a0c16152a4d8",
+ "code": "def rob_circular(nums: list[int]) -> int:\n    n = len(nums)\n    if n == 1:\n        return nums[0]\n\n    def rob_path(lo: int, hi: int) -> int:        # inclusive range\n        two_back, one_back = 0, 0\n        for i in range(lo, hi + 1):\n            two_back, one_back = one_back, max(one_back, two_back + nums[i])\n        return one_back\n\n    return max(rob_path(0, n - 2), rob_path(1, n - 1))\n",
+ "args": [
+  [
+   2,
+   1,
+   1,
+   2
+  ]
+ ],
+ "result": "3",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "rob_circular"
+   ],
+   "vars": {
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "rob_circular"
+   ],
+   "vars": {
+    "nums": "[2, 1, 1, 2]",
+    "n": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "rob_circular"
+   ],
+   "vars": {
+    "nums": "[2, 1, 1, 2]",
+    "n": "4"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "rob_circular"
+   ],
+   "vars": {
+    "nums": "[2, 1, 1, 2]",
+    "n": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "two_back": "0",
+    "one_back": "0",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "two_back": "0",
+    "one_back": "0",
+    "i": "0",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "two_back": "0",
+    "one_back": "2",
+    "i": "0",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "two_back": "0",
+    "one_back": "2",
+    "i": "1",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "two_back": "2",
+    "one_back": "2",
+    "i": "1",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "two_back": "2",
+    "one_back": "2",
+    "i": "2",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "two_back": "2",
+    "one_back": "3",
+    "i": "2",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "two_back": "2",
+    "one_back": "3",
+    "i": "2",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "0",
+    "hi": "2",
+    "two_back": "2",
+    "one_back": "3",
+    "i": "2",
+    "nums": "[2, 1, 1, 2]"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "two_back": "0",
+    "one_back": "0",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "two_back": "0",
+    "one_back": "0",
+    "i": "1",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "two_back": "0",
+    "one_back": "1",
+    "i": "1",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "two_back": "0",
+    "one_back": "1",
+    "i": "2",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "2",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "two_back": "1",
+    "one_back": "1",
+    "i": "3",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "two_back": "1",
+    "one_back": "3",
+    "i": "3",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "two_back": "1",
+    "one_back": "3",
+    "i": "3",
+    "nums": "[2, 1, 1, 2]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "rob_circular",
+    "rob_path"
+   ],
+   "vars": {
+    "lo": "1",
+    "hi": "3",
+    "two_back": "1",
+    "one_back": "3",
+    "i": "3",
+    "nums": "[2, 1, 1, 2]"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "rob_circular"
+   ],
+   "vars": {
+    "nums": "[2, 1, 1, 2]",
+    "n": "4"
+   },
+   "ret": "3"
+  }
+ ]
+}

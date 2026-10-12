@@ -1,0 +1,683 @@
+{
+ "problem": "replace-words",
+ "block": 1,
+ "version": 2,
+ "source": "9eaab5cc74510bf2",
+ "code": "def replace_words(dictionary: list[str], sentence: str) -> str:\n    root: dict = {}\n    for r in dictionary:\n        node = root\n        for ch in r:\n            node = node.setdefault(ch, {})\n        node[\"$\"] = True\n\n    def shorten(word: str) -> str:\n        node = root\n        for i, ch in enumerate(word):\n            if \"$\" in node:\n                return word[:i]\n            node = node.get(ch)\n            if node is None:\n                return word\n        return word[:len(word)] if \"$\" in node else word\n\n    return \" \".join(shorten(w) for w in sentence.split(\" \"))\n",
+ "args": [
+  [
+   "cat",
+   "ca"
+  ],
+  "cattle dog"
+ ],
+ "result": "\"ca dog\"",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "root": "{}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "root": "{}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "node": "{}",
+    "root": "{}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "node": "{}",
+    "ch": "'c'",
+    "root": "{}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "node": "{}",
+    "ch": "'c'",
+    "root": "{'c': {}}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "node": "{}",
+    "ch": "'a'",
+    "root": "{'c': {}}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "node": "{}",
+    "ch": "'a'",
+    "root": "{'c': {'a': {}}}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "node": "{}",
+    "ch": "'t'",
+    "root": "{'c': {'a': {}}}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "node": "{}",
+    "ch": "'t'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "node": "{}",
+    "ch": "'t'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'cat'",
+    "node": "{'$': True}",
+    "ch": "'t'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'$': True}",
+    "ch": "'t'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'c': {'a': {'t': …}}}",
+    "ch": "'t'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'c': {'a': {'t': …}}}",
+    "ch": "'c'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'a': {'t': {'$': True}}}",
+    "ch": "'c'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'a': {'t': {'$': True}}}",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'t': {'$': True}}",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'t': {'$': True}}",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …}}}"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'t': {'$': True}, '$': True}",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'t': {'$': True}, '$': True}",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'t': {'$': True}, '$': True}",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "replace_words",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 10,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'c': {'a': {'t': …, '$': True}}}",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'c': {'a': {'t': …, '$': True}}}",
+    "i": "0",
+    "ch": "'c'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'c': {'a': {'t': …, '$': True}}}",
+    "i": "0",
+    "ch": "'c'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'a': {'t': {'$': True}, '$': True}}",
+    "i": "0",
+    "ch": "'c'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'a': {'t': {'$': True}, '$': True}}",
+    "i": "0",
+    "ch": "'c'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'a': {'t': {'$': True}, '$': True}}",
+    "i": "1",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'a': {'t': {'$': True}, '$': True}}",
+    "i": "1",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'t': {'$': True}, '$': True}",
+    "i": "1",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'t': {'$': True}, '$': True}",
+    "i": "1",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'t': {'$': True}, '$': True}",
+    "i": "2",
+    "ch": "'t'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'t': {'$': True}, '$': True}",
+    "i": "2",
+    "ch": "'t'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'cattle'",
+    "node": "{'t': {'$': True}, '$': True}",
+    "i": "2",
+    "ch": "'t'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   },
+   "ret": "'ca'"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "replace_words",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'cattle'"
+   },
+   "ret": "'ca'"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "replace_words",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'cattle'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'dog'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'dog'",
+    "node": "{'c': {'a': {'t': …, '$': True}}}",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'dog'",
+    "node": "{'c': {'a': {'t': …, '$': True}}}",
+    "i": "0",
+    "ch": "'d'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'dog'",
+    "node": "{'c': {'a': {'t': …, '$': True}}}",
+    "i": "0",
+    "ch": "'d'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'dog'",
+    "node": "None",
+    "i": "0",
+    "ch": "'d'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'dog'",
+    "node": "None",
+    "i": "0",
+    "ch": "'d'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "replace_words",
+    "<genexpr>",
+    "shorten"
+   ],
+   "vars": {
+    "word": "'dog'",
+    "node": "None",
+    "i": "0",
+    "ch": "'d'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   },
+   "ret": "'dog'"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "replace_words",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'dog'"
+   },
+   "ret": "'dog'"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "replace_words",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'dog'"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "replace_words",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'dog'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "replace_words"
+   ],
+   "vars": {
+    "dictionary": "['cat', 'ca']",
+    "sentence": "'cattle dog'",
+    "r": "'ca'",
+    "node": "{'t': {'$': True}, '$': True}",
+    "ch": "'a'",
+    "root": "{'c': {'a': {'t': …, '$': True}}}"
+   },
+   "ret": "'ca dog'"
+  }
+ ]
+}

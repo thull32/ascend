@@ -1,0 +1,1469 @@
+{
+ "problem": "regular-expression-matching",
+ "block": 2,
+ "version": 2,
+ "source": "adbe42e958aaa1d1",
+ "code": "def is_match(s: str, p: str) -> bool:\n    n = len(p)\n    prev = [False] * (n + 1)\n    for i in range(len(s) + 1):\n        cur = [False] * (n + 1)\n        cur[0] = i == 0\n        for j in range(1, n + 1):\n            if p[j - 1] == \"*\":\n                cur[j] = cur[j - 2] or (\n                    i > 0 and p[j - 2] in (\".\", s[i - 1]) and prev[j]\n                )\n            else:\n                cur[j] = i > 0 and p[j - 1] in (\".\", s[i - 1]) and prev[j - 1]\n        prev = cur\n    return prev[n]\n",
+ "args": [
+  "xyyz",
+  "xy*z"
+ ],
+ "result": "true",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[False, False, False, False, False]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "0",
+    "cur": "[True, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[True, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, True, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[True, False, False, False, False]",
+    "i": "1",
+    "cur": "[False, True, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "1",
+    "cur": "[False, True, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, True, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, True, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, True, False, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "2",
+    "cur": "[False, False, True, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, True, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, True, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, True, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "3",
+    "cur": "[False, False, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, True, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, False]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, True]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, True, False]",
+    "i": "4",
+    "cur": "[False, False, False, False, True]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, True]",
+    "i": "4",
+    "cur": "[False, False, False, False, True]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, True]",
+    "i": "4",
+    "cur": "[False, False, False, False, True]",
+    "j": "4"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "is_match"
+   ],
+   "vars": {
+    "s": "'xyyz'",
+    "p": "'xy*z'",
+    "n": "4",
+    "prev": "[False, False, False, False, True]",
+    "i": "4",
+    "cur": "[False, False, False, False, True]",
+    "j": "4"
+   },
+   "ret": "True"
+  }
+ ]
+}

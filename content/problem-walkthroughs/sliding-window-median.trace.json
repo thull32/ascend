@@ -1,0 +1,1397 @@
+{
+ "problem": "sliding-window-median",
+ "block": 1,
+ "version": 2,
+ "source": "77696e13c8ec8ea0",
+ "code": "def median_sliding_window(nums: list[int], k: int) -> list[float]:\n    small: list[int] = []  # max-heap via negation\n    large: list[int] = []  # min-heap\n    delayed: dict[int, int] = collections.defaultdict(int)\n    sizes = [0, 0]  # live counts for small, large\n\n    def prune(heap: list[int], is_large: bool) -> None:\n        while heap:\n            x = heap[0] if is_large else -heap[0]\n            if delayed[x]:\n                delayed[x] -= 1\n                heapq.heappop(heap)\n            else:\n                break\n\n    def rebalance() -> None:\n        if sizes[0] > sizes[1] + 1:\n            heapq.heappush(large, -heapq.heappop(small))\n            sizes[0] -= 1\n            sizes[1] += 1\n            prune(small, False)\n        elif sizes[0] < sizes[1]:\n            heapq.heappush(small, -heapq.heappop(large))\n            sizes[1] -= 1\n            sizes[0] += 1\n            prune(large, True)\n\n    def add(x: int) -> None:\n        if not small or x <= -small[0]:\n            heapq.heappush(small, -x)\n            sizes[0] += 1\n        else:\n            heapq.heappush(large, x)\n            sizes[1] += 1\n        rebalance()\n\n    def remove(x: int) -> None:\n        delayed[x] += 1\n        if x <= -small[0]:\n            sizes[0] -= 1\n            if x == -small[0]:\n                prune(small, False)\n        else:\n            sizes[1] -= 1\n            if x == large[0]:\n                prune(large, True)\n        rebalance()\n\n    def median() -> float:\n        if k % 2:\n            return float(-small[0])\n        return (-small[0] + large[0]) / 2\n\n    out: list[float] = []\n    for i, x in enumerate(nums):\n        add(x)\n        if i >= k:\n            remove(nums[i - k])\n        if i >= k - 1:\n            out.append(median())\n    return out\n",
+ "args": [
+  [
+   1,
+   4,
+   2,
+   3
+  ],
+  3
+ ],
+ "result": "[2.0, 3.0]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "large": "[]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "delayed": "{}",
+    "large": "[]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 37,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 49,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 54,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 55,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 56,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "0",
+    "x": "1",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "1",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "1",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[]"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "1",
+    "large": "[]",
+    "sizes": "[0, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "1",
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 35,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "1",
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 57,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "0",
+    "x": "1",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 59,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "0",
+    "x": "1",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 55,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "0",
+    "x": "1",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 56,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "1",
+    "x": "4",
+    "delayed": "{}",
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "4",
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "4",
+    "large": "[]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "4",
+    "large": "[4]",
+    "sizes": "[1, 0]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "4",
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 35,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "4",
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 57,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "1",
+    "x": "4",
+    "delayed": "{}",
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 59,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "1",
+    "x": "4",
+    "delayed": "{}",
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 55,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "1",
+    "x": "4",
+    "delayed": "{}",
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 56,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "2",
+    "x": "2",
+    "delayed": "{}",
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "2",
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "2",
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "2",
+    "large": "[2, 4]",
+    "sizes": "[1, 1]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "2",
+    "large": "[2, 4]",
+    "sizes": "[1, 2]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[2, 4]",
+    "sizes": "[1, 2]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[2, 4]",
+    "sizes": "[1, 2]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[2, 4]",
+    "sizes": "[1, 2]",
+    "small": "[-1]"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[1, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "delayed": "{}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "delayed": "{}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "x": "4",
+    "delayed": "{}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "x": "4",
+    "delayed": "{4: 0}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "x": "4",
+    "delayed": "{4: 0}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 35,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "2",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 57,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "2",
+    "x": "2",
+    "delayed": "{4: 0}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 59,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "2",
+    "x": "2",
+    "delayed": "{4: 0}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 60,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[]",
+    "i": "2",
+    "x": "2",
+    "delayed": "{4: 0}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 50,
+   "stack": [
+    "median_sliding_window",
+    "median"
+   ],
+   "vars": {
+    "k": "3",
+    "large": "[4]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 51,
+   "stack": [
+    "median_sliding_window",
+    "median"
+   ],
+   "vars": {
+    "k": "3",
+    "large": "[4]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 51,
+   "stack": [
+    "median_sliding_window",
+    "median"
+   ],
+   "vars": {
+    "k": "3",
+    "large": "[4]",
+    "small": "[-2, -1]"
+   },
+   "ret": "2.0"
+  },
+  {
+   "line": 55,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[2.0]",
+    "i": "2",
+    "x": "2",
+    "delayed": "{4: 0}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 56,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[2.0]",
+    "i": "3",
+    "x": "3",
+    "delayed": "{4: 0}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "3",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "3",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "3",
+    "large": "[3, 4]",
+    "sizes": "[2, 1]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "3",
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "median_sliding_window",
+    "add",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 35,
+   "stack": [
+    "median_sliding_window",
+    "add"
+   ],
+   "vars": {
+    "x": "3",
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 57,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[2.0]",
+    "i": "3",
+    "x": "3",
+    "delayed": "{4: 0}",
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 58,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[2.0]",
+    "i": "3",
+    "x": "3",
+    "delayed": "{4: 0}",
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 38,
+   "stack": [
+    "median_sliding_window",
+    "remove"
+   ],
+   "vars": {
+    "x": "1",
+    "delayed": "{4: 0}",
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 39,
+   "stack": [
+    "median_sliding_window",
+    "remove"
+   ],
+   "vars": {
+    "x": "1",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 40,
+   "stack": [
+    "median_sliding_window",
+    "remove"
+   ],
+   "vars": {
+    "x": "1",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[3, 4]",
+    "sizes": "[2, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 41,
+   "stack": [
+    "median_sliding_window",
+    "remove"
+   ],
+   "vars": {
+    "x": "1",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[3, 4]",
+    "sizes": "[1, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 47,
+   "stack": [
+    "median_sliding_window",
+    "remove"
+   ],
+   "vars": {
+    "x": "1",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[3, 4]",
+    "sizes": "[1, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[3, 4]",
+    "sizes": "[1, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[3, 4]",
+    "sizes": "[1, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[3, 4]",
+    "sizes": "[1, 2]",
+    "small": "[-2, -1]"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[1, 2]",
+    "small": "[-3, -1, -2]"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[1, 1]",
+    "small": "[-3, -1, -2]"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-3, -1, -2]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "delayed": "{4: 0, 1: 1}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "delayed": "{4: 0, 1: 1}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "x": "4",
+    "delayed": "{4: 0, 1: 1}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "x": "4",
+    "delayed": "{4: 0, 1: 1}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance",
+    "prune"
+   ],
+   "vars": {
+    "heap": "[4]",
+    "is_large": "True",
+    "x": "4",
+    "delayed": "{4: 0, 1: 1}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "median_sliding_window",
+    "remove",
+    "rebalance"
+   ],
+   "vars": {
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-3, -1, -2]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 47,
+   "stack": [
+    "median_sliding_window",
+    "remove"
+   ],
+   "vars": {
+    "x": "1",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-3, -1, -2]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 59,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[2.0]",
+    "i": "3",
+    "x": "3",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-3, -1, -2]"
+   }
+  },
+  {
+   "line": 60,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[2.0]",
+    "i": "3",
+    "x": "3",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-3, -1, -2]"
+   }
+  },
+  {
+   "line": 50,
+   "stack": [
+    "median_sliding_window",
+    "median"
+   ],
+   "vars": {
+    "k": "3",
+    "large": "[4]",
+    "small": "[-3, -1, -2]"
+   }
+  },
+  {
+   "line": 51,
+   "stack": [
+    "median_sliding_window",
+    "median"
+   ],
+   "vars": {
+    "k": "3",
+    "large": "[4]",
+    "small": "[-3, -1, -2]"
+   }
+  },
+  {
+   "line": 51,
+   "stack": [
+    "median_sliding_window",
+    "median"
+   ],
+   "vars": {
+    "k": "3",
+    "large": "[4]",
+    "small": "[-3, -1, -2]"
+   },
+   "ret": "3.0"
+  },
+  {
+   "line": 55,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[2.0, 3.0]",
+    "i": "3",
+    "x": "3",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-3, -1, -2]"
+   }
+  },
+  {
+   "line": 61,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[2.0, 3.0]",
+    "i": "3",
+    "x": "3",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-3, -1, -2]"
+   }
+  },
+  {
+   "line": 61,
+   "stack": [
+    "median_sliding_window"
+   ],
+   "vars": {
+    "nums": "[1, 4, 2, 3]",
+    "k": "3",
+    "out": "[2.0, 3.0]",
+    "i": "3",
+    "x": "3",
+    "delayed": "{4: 0, 1: 1}",
+    "large": "[4]",
+    "sizes": "[2, 1]",
+    "small": "[-3, -1, -2]"
+   },
+   "ret": "[2.0, 3.0]"
+  }
+ ]
+}

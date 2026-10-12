@@ -1,0 +1,2402 @@
+{
+ "problem": "min-cost-connect-points",
+ "block": 1,
+ "version": 2,
+ "source": "456dadb8587e0e2b",
+ "code": "def min_cost_connect_points(points: list[list[int]]) -> int:\n    n = len(points)\n    INF = float(\"inf\")\n    best = [INF] * n\n    best[0] = 0\n    in_tree = [False] * n\n    total = 0\n    for _ in range(n):\n        u = -1\n        for v in range(n):                        # O(n) min scan, no heap\n            if not in_tree[v] and (u == -1 or best[v] < best[u]):\n                u = v\n        in_tree[u] = True\n        total += best[u]\n        ux, uy = points[u]\n        for v in range(n):                        # O(n) relaxation\n            if not in_tree[v]:\n                d = abs(ux - points[v][0]) + abs(uy - points[v][1])\n                if d < best[v]:\n                    best[v] = d\n    return int(total)\n",
+ "args": [
+  [
+   [
+    0,
+    0
+   ],
+   [
+    1,
+    1
+   ],
+   [
+    1,
+    0
+   ],
+   [
+    4,
+    4
+   ]
+  ]
+ ],
+ "result": "8",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[inf, inf, inf, inf]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "-1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "-1",
+    "v": "0"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "-1",
+    "v": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[False, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3",
+    "ux": "0",
+    "uy": "0"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "0",
+    "ux": "0",
+    "uy": "0"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "0",
+    "ux": "0",
+    "uy": "0"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "1",
+    "ux": "0",
+    "uy": "0"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "1",
+    "ux": "0",
+    "uy": "0"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "1",
+    "ux": "0",
+    "uy": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, inf, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "1",
+    "ux": "0",
+    "uy": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "1",
+    "ux": "0",
+    "uy": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "2",
+    "ux": "0",
+    "uy": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "2",
+    "ux": "0",
+    "uy": "0",
+    "d": "2"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "2",
+    "ux": "0",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, inf, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "2",
+    "ux": "0",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "2",
+    "ux": "0",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, inf]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "0",
+    "u": "0",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "0",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "-1",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "-1",
+    "v": "0",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "-1",
+    "v": "0",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "-1",
+    "v": "1",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "-1",
+    "v": "1",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "1",
+    "v": "1",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "1",
+    "v": "2",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "1",
+    "v": "2",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "2",
+    "v": "2",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, False, False]",
+    "total": "0",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "0",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "0",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "0",
+    "ux": "1",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "0",
+    "ux": "1",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "1",
+    "ux": "1",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "1",
+    "ux": "1",
+    "uy": "0",
+    "d": "8"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "1",
+    "ux": "1",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 2, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "1",
+    "ux": "1",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "1",
+    "ux": "1",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "2",
+    "ux": "1",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "2",
+    "ux": "1",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "1"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 8]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "1",
+    "u": "2",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "2",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "-1",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "-1",
+    "v": "0",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "-1",
+    "v": "0",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "-1",
+    "v": "1",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "-1",
+    "v": "1",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "1",
+    "v": "1",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "1",
+    "v": "2",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "1",
+    "v": "2",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, False, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "1",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "0",
+    "d": "7"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "7"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "0",
+    "ux": "1",
+    "uy": "1",
+    "d": "7"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "0",
+    "ux": "1",
+    "uy": "1",
+    "d": "7"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "1",
+    "ux": "1",
+    "uy": "1",
+    "d": "7"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "1",
+    "ux": "1",
+    "uy": "1",
+    "d": "7"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "2",
+    "ux": "1",
+    "uy": "1",
+    "d": "7"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "2",
+    "ux": "1",
+    "uy": "1",
+    "d": "7"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "7"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "7"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 7]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "2",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "-1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "-1",
+    "v": "0",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "-1",
+    "v": "0",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "-1",
+    "v": "1",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "-1",
+    "v": "1",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "-1",
+    "v": "2",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "-1",
+    "v": "2",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "-1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "-1",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, False]",
+    "total": "2",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "2",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "1",
+    "uy": "1",
+    "d": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "0",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "0",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "1",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "1",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "2",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "2",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "min_cost_connect_points"
+   ],
+   "vars": {
+    "points": "[[0, 0], [1, 1], [1, 0], [4, 4]]",
+    "n": "4",
+    "INF": "inf",
+    "best": "[0, 1, 1, 6]",
+    "in_tree": "[True, True, True, True]",
+    "total": "8",
+    "_": "3",
+    "u": "3",
+    "v": "3",
+    "ux": "4",
+    "uy": "4",
+    "d": "6"
+   },
+   "ret": "8"
+  }
+ ]
+}

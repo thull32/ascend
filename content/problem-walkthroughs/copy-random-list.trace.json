@@ -1,0 +1,510 @@
+{
+ "problem": "copy-random-list",
+ "block": 2,
+ "version": 2,
+ "source": "84af23afe196a824",
+ "code": "def copy_list(head):\n    if head is None:\n        return None\n    # 1. Weave: put each copy right after its original. A -> A' -> B -> B' -> ...\n    node = head\n    while node:\n        node.next = RandomNode(node.val, node.next)\n        node = node.next.next\n    # 2. Link randoms: the copy of X.random is X.random.next.\n    node = head\n    while node:\n        if node.random is not None:\n            node.next.random = node.random.next\n        node = node.next.next\n    # 3. Unweave: restore the original next pointers and thread the copies.\n    copy_head = head.next\n    node = head\n    while node:\n        copy = node.next\n        node.next = copy.next\n        copy.next = copy.next.next if copy.next else None\n        node = node.next\n    return copy_head\n",
+ "args": [
+  [
+   [
+    3,
+    null
+   ],
+   [
+    8,
+    0
+   ],
+   [
+    5,
+    2
+   ]
+  ]
+ ],
+ "result": "[[3, null], [8, 0], [5, 2]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "(3, random→None) → (8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "(3, random→None) → (8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "(3, random→None) → (3, random→None) → (8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "(8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "(8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5)",
+    "node": "(8, random→3) → (8, random→None) → (5, random→5)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5)",
+    "node": "(5, random→5)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5)",
+    "node": "(5, random→5)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)",
+    "node": "(5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)",
+    "node": "None"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)",
+    "node": "None"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)",
+    "node": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)",
+    "node": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)",
+    "node": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)",
+    "node": "(8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)",
+    "node": "(8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)",
+    "node": "(8, random→3) → (8, random→None) → (5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→None)",
+    "node": "(8, random→3) → (8, random→3) → (5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→None)",
+    "node": "(5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→None)",
+    "node": "(5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→None)",
+    "node": "(5, random→5) → (5, random→None)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "None"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "None"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "None",
+    "copy_head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(3, random→None) → (3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(8, random→3) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy": "(8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "copy": "(8, random→3) → (5, random→5) → (5, random→5)"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(8, random→3) → (5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "copy": "(8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "copy": "(8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "copy": "(8, random→3) → (5, random→5)"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5) → (5, random→5)",
+    "node": "(5, random→5) → (5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "copy": "(5, random→5)"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "(5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "copy": "(5, random→5)"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "(5, random→5)",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "copy": "(5, random→5)"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "None",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "copy": "(5, random→5)"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "None",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "copy": "(5, random→5)"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "copy_list"
+   ],
+   "vars": {
+    "head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "node": "None",
+    "copy_head": "(3, random→None) → (8, random→3) → (5, random→5)",
+    "copy": "(5, random→5)"
+   },
+   "ret": "(3, random→None) → (8, random→3) → (5, random→5)"
+  }
+ ]
+}

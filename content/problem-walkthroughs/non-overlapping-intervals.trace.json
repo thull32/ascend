@@ -1,0 +1,306 @@
+{
+ "problem": "non-overlapping-intervals",
+ "block": 1,
+ "version": 2,
+ "source": "40669f743a60b6b3",
+ "code": "def erase_overlap_intervals(intervals: list[list[int]]) -> int:\n    if not intervals:\n        return 0\n    intervals = sorted(intervals, key=lambda iv: iv[1])\n    removed = 0\n    last_end = intervals[0][1]\n    for start, end in intervals[1:]:\n        if start < last_end:\n            removed += 1            # overlaps the kept one: drop it\n        else:\n            last_end = end          # compatible: keep it, advance the frontier\n    return removed\n",
+ "args": [
+  [
+   [
+    1,
+    100
+   ],
+   [
+    11,
+    22
+   ],
+   [
+    1,
+    11
+   ],
+   [
+    2,
+    12
+   ]
+  ]
+ ],
+ "result": "2",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 100], [11, 22], [1, 11], [2, 12]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 100], [11, 22], [1, 11], [2, 12]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "erase_overlap_intervals",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[1, 100]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "erase_overlap_intervals",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[1, 100]"
+   },
+   "ret": "100"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "erase_overlap_intervals",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[11, 22]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "erase_overlap_intervals",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[11, 22]"
+   },
+   "ret": "22"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "erase_overlap_intervals",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[1, 11]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "erase_overlap_intervals",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[1, 11]"
+   },
+   "ret": "11"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "erase_overlap_intervals",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[2, 12]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "erase_overlap_intervals",
+    "<lambda>"
+   ],
+   "vars": {
+    "iv": "[2, 12]"
+   },
+   "ret": "12"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "0",
+    "last_end": "11"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "0",
+    "last_end": "11",
+    "start": "2",
+    "end": "12"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "0",
+    "last_end": "11",
+    "start": "2",
+    "end": "12"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "1",
+    "last_end": "11",
+    "start": "2",
+    "end": "12"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "1",
+    "last_end": "11",
+    "start": "11",
+    "end": "22"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "1",
+    "last_end": "11",
+    "start": "11",
+    "end": "22"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "1",
+    "last_end": "22",
+    "start": "11",
+    "end": "22"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "1",
+    "last_end": "22",
+    "start": "1",
+    "end": "100"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "1",
+    "last_end": "22",
+    "start": "1",
+    "end": "100"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "2",
+    "last_end": "22",
+    "start": "1",
+    "end": "100"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "2",
+    "last_end": "22",
+    "start": "1",
+    "end": "100"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "erase_overlap_intervals"
+   ],
+   "vars": {
+    "intervals": "[[1, 11], [2, 12], [11, 22], [1, 100]]",
+    "removed": "2",
+    "last_end": "22",
+    "start": "1",
+    "end": "100"
+   },
+   "ret": "2"
+  }
+ ]
+}

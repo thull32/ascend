@@ -1,0 +1,763 @@
+{
+ "problem": "longest-repeating-replacement",
+ "block": 1,
+ "version": 2,
+ "source": "c851af2fead39d38",
+ "code": "def character_replacement(s: str, k: int) -> int:\n    counts: dict[str, int] = {}\n    left = 0\n    max_count = 0\n    best = 0\n    for right, ch in enumerate(s):\n        counts[ch] = counts.get(ch, 0) + 1\n        max_count = max(max_count, counts[ch])\n        if (right - left + 1) - max_count > k:\n            counts[s[left]] -= 1\n            left += 1\n        best = max(best, right - left + 1)\n    return best\n",
+ "args": [
+  "AABABBA",
+  1
+ ],
+ "result": "4",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{}",
+    "left": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{}",
+    "left": "0",
+    "max_count": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{}",
+    "left": "0",
+    "max_count": "0",
+    "best": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{}",
+    "left": "0",
+    "max_count": "0",
+    "best": "0",
+    "right": "0",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 1}",
+    "left": "0",
+    "max_count": "0",
+    "best": "0",
+    "right": "0",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 1}",
+    "left": "0",
+    "max_count": "1",
+    "best": "0",
+    "right": "0",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 1}",
+    "left": "0",
+    "max_count": "1",
+    "best": "0",
+    "right": "0",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 1}",
+    "left": "0",
+    "max_count": "1",
+    "best": "1",
+    "right": "0",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 1}",
+    "left": "0",
+    "max_count": "1",
+    "best": "1",
+    "right": "1",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2}",
+    "left": "0",
+    "max_count": "1",
+    "best": "1",
+    "right": "1",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2}",
+    "left": "0",
+    "max_count": "2",
+    "best": "1",
+    "right": "1",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2}",
+    "left": "0",
+    "max_count": "2",
+    "best": "1",
+    "right": "1",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2}",
+    "left": "0",
+    "max_count": "2",
+    "best": "2",
+    "right": "1",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2}",
+    "left": "0",
+    "max_count": "2",
+    "best": "2",
+    "right": "2",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 1}",
+    "left": "0",
+    "max_count": "2",
+    "best": "2",
+    "right": "2",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 1}",
+    "left": "0",
+    "max_count": "2",
+    "best": "2",
+    "right": "2",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 1}",
+    "left": "0",
+    "max_count": "2",
+    "best": "2",
+    "right": "2",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 1}",
+    "left": "0",
+    "max_count": "2",
+    "best": "3",
+    "right": "2",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 1}",
+    "left": "0",
+    "max_count": "2",
+    "best": "3",
+    "right": "3",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 3, 'B': 1}",
+    "left": "0",
+    "max_count": "2",
+    "best": "3",
+    "right": "3",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 3, 'B': 1}",
+    "left": "0",
+    "max_count": "3",
+    "best": "3",
+    "right": "3",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 3, 'B': 1}",
+    "left": "0",
+    "max_count": "3",
+    "best": "3",
+    "right": "3",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 3, 'B': 1}",
+    "left": "0",
+    "max_count": "3",
+    "best": "4",
+    "right": "3",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 3, 'B': 1}",
+    "left": "0",
+    "max_count": "3",
+    "best": "4",
+    "right": "4",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 3, 'B': 2}",
+    "left": "0",
+    "max_count": "3",
+    "best": "4",
+    "right": "4",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 3, 'B': 2}",
+    "left": "0",
+    "max_count": "3",
+    "best": "4",
+    "right": "4",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 3, 'B': 2}",
+    "left": "0",
+    "max_count": "3",
+    "best": "4",
+    "right": "4",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 2}",
+    "left": "0",
+    "max_count": "3",
+    "best": "4",
+    "right": "4",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 2}",
+    "left": "1",
+    "max_count": "3",
+    "best": "4",
+    "right": "4",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 2}",
+    "left": "1",
+    "max_count": "3",
+    "best": "4",
+    "right": "4",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 2}",
+    "left": "1",
+    "max_count": "3",
+    "best": "4",
+    "right": "5",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 3}",
+    "left": "1",
+    "max_count": "3",
+    "best": "4",
+    "right": "5",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 3}",
+    "left": "1",
+    "max_count": "3",
+    "best": "4",
+    "right": "5",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 3}",
+    "left": "1",
+    "max_count": "3",
+    "best": "4",
+    "right": "5",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 1, 'B': 3}",
+    "left": "1",
+    "max_count": "3",
+    "best": "4",
+    "right": "5",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 1, 'B': 3}",
+    "left": "2",
+    "max_count": "3",
+    "best": "4",
+    "right": "5",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 1, 'B': 3}",
+    "left": "2",
+    "max_count": "3",
+    "best": "4",
+    "right": "5",
+    "ch": "'B'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 1, 'B': 3}",
+    "left": "2",
+    "max_count": "3",
+    "best": "4",
+    "right": "6",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 3}",
+    "left": "2",
+    "max_count": "3",
+    "best": "4",
+    "right": "6",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 3}",
+    "left": "2",
+    "max_count": "3",
+    "best": "4",
+    "right": "6",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 3}",
+    "left": "2",
+    "max_count": "3",
+    "best": "4",
+    "right": "6",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 2}",
+    "left": "2",
+    "max_count": "3",
+    "best": "4",
+    "right": "6",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 2}",
+    "left": "3",
+    "max_count": "3",
+    "best": "4",
+    "right": "6",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 2}",
+    "left": "3",
+    "max_count": "3",
+    "best": "4",
+    "right": "6",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 2}",
+    "left": "3",
+    "max_count": "3",
+    "best": "4",
+    "right": "6",
+    "ch": "'A'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "character_replacement"
+   ],
+   "vars": {
+    "s": "'AABABBA'",
+    "k": "1",
+    "counts": "{'A': 2, 'B': 2}",
+    "left": "3",
+    "max_count": "3",
+    "best": "4",
+    "right": "6",
+    "ch": "'A'"
+   },
+   "ret": "4"
+  }
+ ]
+}

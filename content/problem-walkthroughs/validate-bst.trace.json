@@ -1,0 +1,349 @@
+{
+ "problem": "validate-bst",
+ "block": 1,
+ "version": 2,
+ "source": "709e5153b1d111b9",
+ "code": "def is_valid_bst(root: TreeNode | None) -> bool:\n    def valid(node, lo, hi):\n        if node is None:\n            return True\n        if not (lo < node.val < hi):\n            return False\n        return valid(node.left, lo, node.val) and valid(node.right, node.val, hi)\n\n    return valid(root, float(\"-inf\"), float(\"inf\"))\n",
+ "args": [
+  {
+   "$tree": [
+    10,
+    5,
+    15,
+    null,
+    null,
+    6,
+    20
+   ]
+  }
+ ],
+ "result": "false",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "is_valid_bst"
+   ],
+   "vars": {
+    "root": "TreeNode(10)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_valid_bst"
+   ],
+   "vars": {
+    "root": "TreeNode(10)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_valid_bst",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(10)",
+    "lo": "-inf",
+    "hi": "inf"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_valid_bst",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(10)",
+    "lo": "-inf",
+    "hi": "inf"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_valid_bst",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(10)",
+    "lo": "-inf",
+    "hi": "inf"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(5)",
+    "lo": "-inf",
+    "hi": "10"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(5)",
+    "lo": "-inf",
+    "hi": "10"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(5)",
+    "lo": "-inf",
+    "hi": "10"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "None",
+    "lo": "-inf",
+    "hi": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "None",
+    "lo": "-inf",
+    "hi": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "None",
+    "lo": "-inf",
+    "hi": "5"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "None",
+    "lo": "5",
+    "hi": "10"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "None",
+    "lo": "5",
+    "hi": "10"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "None",
+    "lo": "5",
+    "hi": "10"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(5)",
+    "lo": "-inf",
+    "hi": "10"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "lo": "10",
+    "hi": "inf"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "lo": "10",
+    "hi": "inf"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "lo": "10",
+    "hi": "inf"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(6)",
+    "lo": "10",
+    "hi": "15"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(6)",
+    "lo": "10",
+    "hi": "15"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(6)",
+    "lo": "10",
+    "hi": "15"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(6)",
+    "lo": "10",
+    "hi": "15"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_valid_bst",
+    "valid",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(15)",
+    "lo": "10",
+    "hi": "inf"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "is_valid_bst",
+    "valid"
+   ],
+   "vars": {
+    "node": "TreeNode(10)",
+    "lo": "-inf",
+    "hi": "inf"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "is_valid_bst"
+   ],
+   "vars": {
+    "root": "TreeNode(10)"
+   },
+   "ret": "False"
+  }
+ ]
+}

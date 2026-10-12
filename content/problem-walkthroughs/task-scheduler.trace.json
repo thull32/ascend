@@ -1,0 +1,149 @@
+{
+ "problem": "task-scheduler",
+ "block": 1,
+ "version": 2,
+ "source": "0da2c07b4b469ffa",
+ "code": "def least_interval(tasks: list[str], n: int) -> int:\n    counts = collections.Counter(tasks)\n    f = max(counts.values())\n    m = sum(1 for c in counts.values() if c == f)\n    return max(len(tasks), (f - 1) * (n + 1) + m)\n",
+ "args": [
+  [
+   "A",
+   "A",
+   "A",
+   "B",
+   "B",
+   "B"
+  ],
+  2
+ ],
+ "result": "8",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "least_interval"
+   ],
+   "vars": {
+    "tasks": "['A', 'A', 'A', 'B', 'B', 'B']",
+    "n": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "least_interval"
+   ],
+   "vars": {
+    "tasks": "['A', 'A', 'A', 'B', 'B', 'B']",
+    "n": "2",
+    "counts": "{'A': 3, 'B': 3}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "least_interval"
+   ],
+   "vars": {
+    "tasks": "['A', 'A', 'A', 'B', 'B', 'B']",
+    "n": "2",
+    "counts": "{'A': 3, 'B': 3}",
+    "f": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "least_interval",
+    "<genexpr>"
+   ],
+   "vars": {
+    "f": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "least_interval",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "3",
+    "f": "3"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "least_interval",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "3",
+    "f": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "least_interval",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "3",
+    "f": "3"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "least_interval",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "3",
+    "f": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "least_interval",
+    "<genexpr>"
+   ],
+   "vars": {
+    "c": "3",
+    "f": "3"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "least_interval"
+   ],
+   "vars": {
+    "tasks": "['A', 'A', 'A', 'B', 'B', 'B']",
+    "n": "2",
+    "counts": "{'A': 3, 'B': 3}",
+    "m": "2",
+    "f": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "least_interval"
+   ],
+   "vars": {
+    "tasks": "['A', 'A', 'A', 'B', 'B', 'B']",
+    "n": "2",
+    "counts": "{'A': 3, 'B': 3}",
+    "m": "2",
+    "f": "3"
+   },
+   "ret": "8"
+  }
+ ]
+}

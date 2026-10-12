@@ -1,0 +1,276 @@
+{
+ "problem": "first-missing-positive",
+ "block": 1,
+ "version": 2,
+ "source": "f744d4f9580f5fc9",
+ "code": "def first_missing_positive(nums: list[int]) -> int:\n    n = len(nums)\n    for i in range(n):\n        while 1 <= nums[i] <= n and nums[nums[i] - 1] != nums[i]:\n            home = nums[i] - 1\n            nums[i], nums[home] = nums[home], nums[i]\n    for i in range(n):\n        if nums[i] != i + 1:\n            return i + 1\n    return n + 1\n",
+ "args": [
+  [
+   3,
+   1,
+   -1,
+   1
+  ]
+ ],
+ "result": "2",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[3, 1, -1, 1]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[3, 1, -1, 1]",
+    "n": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[3, 1, -1, 1]",
+    "n": "4",
+    "i": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[3, 1, -1, 1]",
+    "n": "4",
+    "i": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[3, 1, -1, 1]",
+    "n": "4",
+    "i": "0",
+    "home": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[-1, 1, 3, 1]",
+    "n": "4",
+    "i": "0",
+    "home": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[-1, 1, 3, 1]",
+    "n": "4",
+    "i": "0",
+    "home": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[-1, 1, 3, 1]",
+    "n": "4",
+    "i": "1",
+    "home": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[-1, 1, 3, 1]",
+    "n": "4",
+    "i": "1",
+    "home": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[-1, 1, 3, 1]",
+    "n": "4",
+    "i": "1",
+    "home": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "1",
+    "home": "0"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "1",
+    "home": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "2",
+    "home": "0"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "2",
+    "home": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "3",
+    "home": "0"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "3",
+    "home": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "3",
+    "home": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "0",
+    "home": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "0",
+    "home": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "1",
+    "home": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "1",
+    "home": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "first_missing_positive"
+   ],
+   "vars": {
+    "nums": "[1, -1, 3, 1]",
+    "n": "4",
+    "i": "1",
+    "home": "0"
+   },
+   "ret": "2"
+  }
+ ]
+}

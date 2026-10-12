@@ -1,0 +1,3408 @@
+{
+ "problem": "permutations",
+ "block": 1,
+ "version": 2,
+ "source": "8585e1edb592ad07",
+ "code": "def permute(nums: list[int]) -> list[list[int]]:\n    result: list[list[int]] = []\n    path: list[int] = []\n    used = [False] * len(nums)\n\n    def backtrack() -> None:\n        if len(path) == len(nums):\n            result.append(path[:])\n            return\n        for i, x in enumerate(nums):\n            if used[i]:\n                continue\n            used[i] = True\n            path.append(x)\n            backtrack()\n            path.pop()\n            used[i] = False\n\n    backtrack()\n    return result\n",
+ "args": [
+  [
+   1,
+   2,
+   3
+  ]
+ ],
+ "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "permute"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "permute"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "permute"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "permute"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "permute"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2, 3]",
+    "result": "[]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2, 3]",
+    "result": "[]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2, 3]",
+    "result": "[]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, False]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 2]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3, 2]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3, 2]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3, 2]",
+    "result": "[[1, 2, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, False]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, False, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, False]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, True, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2, 3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, False]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, True, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, True, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, False, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[True, True, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2, 1]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[True, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "0",
+    "x": "1",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3, 2]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, True, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "1",
+    "x": "2",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, True]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[3]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, True]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "permute",
+    "backtrack"
+   ],
+   "vars": {
+    "i": "2",
+    "x": "3",
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, False]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 20,
+   "stack": [
+    "permute"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, False]"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "permute"
+   ],
+   "vars": {
+    "nums": "[1, 2, 3]",
+    "path": "[]",
+    "result": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]",
+    "used": "[False, False, False]"
+   },
+   "ret": "[[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]"
+  }
+ ]
+}

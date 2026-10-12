@@ -1,0 +1,544 @@
+{
+ "problem": "sliding-window-maximum",
+ "block": 1,
+ "version": 2,
+ "source": "88d83a33c6f73584",
+ "code": "def max_sliding_window(nums: list[int], k: int) -> list[int]:\n    dq: collections.deque[int] = collections.deque()   # indices, values decreasing\n    out: list[int] = []\n    for i, x in enumerate(nums):\n        while dq and nums[dq[-1]] <= x:\n            dq.pop()                       # dominated by x\n        dq.append(i)\n        if dq[0] <= i - k:\n            dq.popleft()                   # fell out of the window\n        if i >= k - 1:\n            out.append(nums[dq[0]])\n    return out\n",
+ "args": [
+  [
+   5,
+   3,
+   1,
+   4,
+   2
+  ],
+  3
+ ],
+ "result": "[5, 4, 4]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([])"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([])",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([])",
+    "out": "[]",
+    "i": "0",
+    "x": "5"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([])",
+    "out": "[]",
+    "i": "0",
+    "x": "5"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0])",
+    "out": "[]",
+    "i": "0",
+    "x": "5"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0])",
+    "out": "[]",
+    "i": "0",
+    "x": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0])",
+    "out": "[]",
+    "i": "0",
+    "x": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0])",
+    "out": "[]",
+    "i": "1",
+    "x": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0])",
+    "out": "[]",
+    "i": "1",
+    "x": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1])",
+    "out": "[]",
+    "i": "1",
+    "x": "3"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1])",
+    "out": "[]",
+    "i": "1",
+    "x": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1])",
+    "out": "[]",
+    "i": "1",
+    "x": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1])",
+    "out": "[]",
+    "i": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1])",
+    "out": "[]",
+    "i": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1, 2])",
+    "out": "[]",
+    "i": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1, 2])",
+    "out": "[]",
+    "i": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1, 2])",
+    "out": "[]",
+    "i": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1, 2])",
+    "out": "[5]",
+    "i": "2",
+    "x": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1, 2])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1, 2])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 1])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 3])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([0, 3])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3])",
+    "out": "[5]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3])",
+    "out": "[5, 4]",
+    "i": "3",
+    "x": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3])",
+    "out": "[5, 4]",
+    "i": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3])",
+    "out": "[5, 4]",
+    "i": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3, 4])",
+    "out": "[5, 4]",
+    "i": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3, 4])",
+    "out": "[5, 4]",
+    "i": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3, 4])",
+    "out": "[5, 4]",
+    "i": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3, 4])",
+    "out": "[5, 4, 4]",
+    "i": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3, 4])",
+    "out": "[5, 4, 4]",
+    "i": "4",
+    "x": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "max_sliding_window"
+   ],
+   "vars": {
+    "nums": "[5, 3, 1, 4, 2]",
+    "k": "3",
+    "dq": "deque([3, 4])",
+    "out": "[5, 4, 4]",
+    "i": "4",
+    "x": "2"
+   },
+   "ret": "[5, 4, 4]"
+  }
+ ]
+}

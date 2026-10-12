@@ -1,0 +1,768 @@
+{
+ "problem": "serialize-deserialize",
+ "block": 1,
+ "version": 2,
+ "source": "0f50fb0218a31a97",
+ "code": "from collections import deque\n\ndef serialize(root: TreeNode | None) -> str:\n    if root is None:\n        return \"\"\n    out: list[str] = []\n    queue = deque([root])\n    while queue:\n        node = queue.popleft()\n        if node is None:\n            out.append(\"#\")\n            continue\n        out.append(str(node.val))\n        queue.append(node.left)\n        queue.append(node.right)\n    return \",\".join(out)\n\n\ndef deserialize(data: str) -> TreeNode | None:\n    if data == \"\":\n        return None\n    tokens = data.split(\",\")\n    root = TreeNode(int(tokens[0]))\n    queue = deque([root])\n    i = 1\n    while queue and i < len(tokens):\n        parent = queue.popleft()\n        if tokens[i] != \"#\":\n            parent.left = TreeNode(int(tokens[i]))\n            queue.append(parent.left)\n        i += 1\n        if i < len(tokens) and tokens[i] != \"#\":\n            parent.right = TreeNode(int(tokens[i]))\n            queue.append(parent.right)\n        i += 1\n    return root\n\n\ndef roundtrip(root: TreeNode | None) -> TreeNode | None:\n    return deserialize(serialize(root))\n",
+ "args": [
+  {
+   "$tree": [
+    1,
+    null,
+    2
+   ]
+  }
+ ],
+ "result": "{\"$tree\": [1, null, 2]}",
+ "frames": [
+  {
+   "line": 40,
+   "stack": [
+    "roundtrip"
+   ],
+   "vars": {
+    "root": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "[]",
+    "queue": "deque([TreeNode(1)])"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "[]",
+    "queue": "deque([TreeNode(1)])"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "[]",
+    "queue": "deque([])",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "[]",
+    "queue": "deque([])",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1']",
+    "queue": "deque([])",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1']",
+    "queue": "deque([None])",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1']",
+    "queue": "deque([None, TreeNode(2)])",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1']",
+    "queue": "deque([None, TreeNode(2)])",
+    "node": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1']",
+    "queue": "deque([TreeNode(2)])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1']",
+    "queue": "deque([TreeNode(2)])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#']",
+    "queue": "deque([TreeNode(2)])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#']",
+    "queue": "deque([TreeNode(2)])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#']",
+    "queue": "deque([TreeNode(2)])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#']",
+    "queue": "deque([])",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#']",
+    "queue": "deque([])",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2']",
+    "queue": "deque([])",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2']",
+    "queue": "deque([None])",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2']",
+    "queue": "deque([None, None])",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2']",
+    "queue": "deque([None, None])",
+    "node": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2']",
+    "queue": "deque([None])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2']",
+    "queue": "deque([None])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2', '#']",
+    "queue": "deque([None])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2', '#']",
+    "queue": "deque([None])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2', '#']",
+    "queue": "deque([None])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2', '#']",
+    "queue": "deque([])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2', '#']",
+    "queue": "deque([])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2', '#', '#']",
+    "queue": "deque([])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2', '#', '#']",
+    "queue": "deque([])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2', '#', '#']",
+    "queue": "deque([])",
+    "node": "None"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "roundtrip",
+    "serialize"
+   ],
+   "vars": {
+    "root": "TreeNode(1)",
+    "out": "['1', '#', '2', '#', '#']",
+    "queue": "deque([])",
+    "node": "None"
+   },
+   "ret": "'1,#,2,#,#'"
+  },
+  {
+   "line": 20,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(1)])"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(1)])",
+    "i": "1"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(1)])",
+    "i": "1"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "1",
+    "parent": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "1",
+    "parent": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "2",
+    "parent": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "2",
+    "parent": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "2",
+    "parent": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2)])",
+    "i": "2",
+    "parent": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2)])",
+    "i": "3",
+    "parent": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([TreeNode(2)])",
+    "i": "3",
+    "parent": "TreeNode(1)"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "3",
+    "parent": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "3",
+    "parent": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "4",
+    "parent": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "4",
+    "parent": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "5",
+    "parent": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "5",
+    "parent": "TreeNode(2)"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "roundtrip",
+    "deserialize"
+   ],
+   "vars": {
+    "data": "'1,#,2,#,#'",
+    "tokens": "['1', '#', '2', '#', '#']",
+    "root": "TreeNode(1)",
+    "queue": "deque([])",
+    "i": "5",
+    "parent": "TreeNode(2)"
+   },
+   "ret": "TreeNode(1)"
+  },
+  {
+   "line": 40,
+   "stack": [
+    "roundtrip"
+   ],
+   "vars": {
+    "root": "TreeNode(1)"
+   },
+   "ret": "TreeNode(1)"
+  }
+ ]
+}

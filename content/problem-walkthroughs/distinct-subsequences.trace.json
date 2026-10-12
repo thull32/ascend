@@ -1,0 +1,843 @@
+{
+ "problem": "distinct-subsequences",
+ "block": 2,
+ "version": 2,
+ "source": "07853b05365275e3",
+ "code": "def num_distinct(s: str, t: str) -> int:\n    n = len(t)\n    W = [0] * (n + 1)\n    W[0] = 1                                   # the empty target\n    for ch in s:\n        for j in range(n, 0, -1):              # downwards\n            if ch == t[j - 1]:\n                W[j] += W[j - 1]\n    return W[n]\n",
+ "args": [
+  "banana",
+  "ban"
+ ],
+ "result": "3",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[0, 0, 0, 0]"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 0, 0, 0]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 0, 0, 0]",
+    "ch": "'b'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 0, 0, 0]",
+    "ch": "'b'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 0, 0, 0]",
+    "ch": "'b'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 0, 0, 0]",
+    "ch": "'b'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 0, 0, 0]",
+    "ch": "'b'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 0, 0, 0]",
+    "ch": "'b'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 0, 0, 0]",
+    "ch": "'b'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 0, 0]",
+    "ch": "'b'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 0, 0]",
+    "ch": "'b'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 0, 0]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 0, 0]",
+    "ch": "'a'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 0, 0]",
+    "ch": "'a'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 0, 0]",
+    "ch": "'a'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 0, 0]",
+    "ch": "'a'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 0]",
+    "ch": "'a'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 0]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 0]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 0]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 0]",
+    "ch": "'n'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 0]",
+    "ch": "'n'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 0]",
+    "ch": "'n'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'n'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'n'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'n'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'n'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'n'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'n'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'a'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'a'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'a'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 1, 1]",
+    "ch": "'a'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 1]",
+    "ch": "'a'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 1]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 1]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 1]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 1]",
+    "ch": "'n'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 1]",
+    "ch": "'n'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 1]",
+    "ch": "'n'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'n'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'n'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'n'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'n'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'n'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'n'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'a'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'a'",
+    "j": "3"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'a'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 2, 3]",
+    "ch": "'a'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 3, 3]",
+    "ch": "'a'",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 3, 3]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 3, 3]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 3, 3]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 3, 3]",
+    "ch": "'a'",
+    "j": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "num_distinct"
+   ],
+   "vars": {
+    "s": "'banana'",
+    "t": "'ban'",
+    "n": "3",
+    "W": "[1, 1, 3, 3]",
+    "ch": "'a'",
+    "j": "1"
+   },
+   "ret": "3"
+  }
+ ]
+}

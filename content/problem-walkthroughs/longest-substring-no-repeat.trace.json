@@ -1,0 +1,490 @@
+{
+ "problem": "longest-substring-no-repeat",
+ "block": 1,
+ "version": 2,
+ "source": "9ffbec449a2bdb65",
+ "code": "def length_of_longest_substring(s: str) -> int:\n    last: dict[str, int] = {}\n    left = 0\n    best = 0\n    for right, ch in enumerate(s):\n        if ch in last and last[ch] >= left:\n            left = last[ch] + 1          # jump past the previous occurrence\n        last[ch] = right\n        best = max(best, right - left + 1)\n    return best\n",
+ "args": [
+  "tmmzuxt"
+ ],
+ "result": "5",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{}",
+    "left": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{}",
+    "left": "0",
+    "best": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{}",
+    "left": "0",
+    "best": "0",
+    "right": "0",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{}",
+    "left": "0",
+    "best": "0",
+    "right": "0",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0}",
+    "left": "0",
+    "best": "0",
+    "right": "0",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0}",
+    "left": "0",
+    "best": "1",
+    "right": "0",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0}",
+    "left": "0",
+    "best": "1",
+    "right": "1",
+    "ch": "'m'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0}",
+    "left": "0",
+    "best": "1",
+    "right": "1",
+    "ch": "'m'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 1}",
+    "left": "0",
+    "best": "1",
+    "right": "1",
+    "ch": "'m'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 1}",
+    "left": "0",
+    "best": "2",
+    "right": "1",
+    "ch": "'m'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 1}",
+    "left": "0",
+    "best": "2",
+    "right": "2",
+    "ch": "'m'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 1}",
+    "left": "0",
+    "best": "2",
+    "right": "2",
+    "ch": "'m'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 1}",
+    "left": "2",
+    "best": "2",
+    "right": "2",
+    "ch": "'m'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2}",
+    "left": "2",
+    "best": "2",
+    "right": "2",
+    "ch": "'m'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2}",
+    "left": "2",
+    "best": "2",
+    "right": "2",
+    "ch": "'m'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2}",
+    "left": "2",
+    "best": "2",
+    "right": "3",
+    "ch": "'z'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2}",
+    "left": "2",
+    "best": "2",
+    "right": "3",
+    "ch": "'z'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3}",
+    "left": "2",
+    "best": "2",
+    "right": "3",
+    "ch": "'z'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3}",
+    "left": "2",
+    "best": "2",
+    "right": "3",
+    "ch": "'z'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3}",
+    "left": "2",
+    "best": "2",
+    "right": "4",
+    "ch": "'u'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3}",
+    "left": "2",
+    "best": "2",
+    "right": "4",
+    "ch": "'u'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3, 'u': 4}",
+    "left": "2",
+    "best": "2",
+    "right": "4",
+    "ch": "'u'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3, 'u': 4}",
+    "left": "2",
+    "best": "3",
+    "right": "4",
+    "ch": "'u'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3, 'u': 4}",
+    "left": "2",
+    "best": "3",
+    "right": "5",
+    "ch": "'x'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3, 'u': 4}",
+    "left": "2",
+    "best": "3",
+    "right": "5",
+    "ch": "'x'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3, 'u': 4, 'x': 5}",
+    "left": "2",
+    "best": "3",
+    "right": "5",
+    "ch": "'x'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3, 'u': 4, 'x': 5}",
+    "left": "2",
+    "best": "4",
+    "right": "5",
+    "ch": "'x'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3, 'u': 4, 'x': 5}",
+    "left": "2",
+    "best": "4",
+    "right": "6",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 0, 'm': 2, 'z': 3, 'u': 4, 'x': 5}",
+    "left": "2",
+    "best": "4",
+    "right": "6",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 6, 'm': 2, 'z': 3, 'u': 4, 'x': 5}",
+    "left": "2",
+    "best": "4",
+    "right": "6",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 6, 'm': 2, 'z': 3, 'u': 4, 'x': 5}",
+    "left": "2",
+    "best": "5",
+    "right": "6",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 6, 'm': 2, 'z': 3, 'u': 4, 'x': 5}",
+    "left": "2",
+    "best": "5",
+    "right": "6",
+    "ch": "'t'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "length_of_longest_substring"
+   ],
+   "vars": {
+    "s": "'tmmzuxt'",
+    "last": "{'t': 6, 'm': 2, 'z': 3, 'u': 4, 'x': 5}",
+    "left": "2",
+    "best": "5",
+    "right": "6",
+    "ch": "'t'"
+   },
+   "ret": "5"
+  }
+ ]
+}

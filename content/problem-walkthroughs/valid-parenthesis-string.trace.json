@@ -1,0 +1,382 @@
+{
+ "problem": "valid-parenthesis-string",
+ "block": 1,
+ "version": 2,
+ "source": "4a29bcbb684ac63d",
+ "code": "def check_valid_string(s: str) -> bool:\n    lo = hi = 0   # min and max possible number of unmatched '('\n    for ch in s:\n        if ch == \"(\":\n            lo += 1\n            hi += 1\n        elif ch == \")\":\n            lo -= 1\n            hi -= 1\n        else:  # '*'\n            lo -= 1\n            hi += 1\n        if hi < 0:\n            return False          # too many ')' even if every '*' is '('\n        lo = max(lo, 0)           # a negative open count is not a real state\n    return lo == 0\n",
+ "args": [
+  "(*))"
+ ],
+ "result": "true",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "0"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "0",
+    "ch": "'('"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "0",
+    "ch": "'('"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "1",
+    "hi": "0",
+    "ch": "'('"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "1",
+    "hi": "1",
+    "ch": "'('"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "1",
+    "hi": "1",
+    "ch": "'('"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "1",
+    "hi": "1",
+    "ch": "'('"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "1",
+    "hi": "1",
+    "ch": "'*'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "1",
+    "hi": "1",
+    "ch": "'*'"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "1",
+    "hi": "1",
+    "ch": "'*'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "1",
+    "ch": "'*'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "2",
+    "ch": "'*'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "2",
+    "ch": "'*'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "2",
+    "ch": "'*'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "2",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "2",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "2",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "-1",
+    "hi": "2",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "-1",
+    "hi": "1",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "-1",
+    "hi": "1",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "1",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "1",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "1",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "1",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "-1",
+    "hi": "1",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "-1",
+    "hi": "0",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "-1",
+    "hi": "0",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "0",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "0",
+    "ch": "')'"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "check_valid_string"
+   ],
+   "vars": {
+    "s": "'(*))'",
+    "lo": "0",
+    "hi": "0",
+    "ch": "')'"
+   },
+   "ret": "True"
+  }
+ ]
+}

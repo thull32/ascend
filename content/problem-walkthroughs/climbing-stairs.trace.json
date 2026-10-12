@@ -1,0 +1,154 @@
+{
+ "problem": "climbing-stairs",
+ "block": 2,
+ "version": 2,
+ "source": "b453aa1a76c4a6a0",
+ "code": "def climbing_stairs(n: int) -> int:\n    prev2, prev1 = 1, 1          # ways[i - 2], ways[i - 1], starting at i = 2\n    for _ in range(2, n + 1):\n        prev2, prev1 = prev1, prev1 + prev2\n    return prev1\n",
+ "args": [
+  5
+ ],
+ "result": "8",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "1",
+    "prev1": "1"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "1",
+    "prev1": "1",
+    "_": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "1",
+    "prev1": "2",
+    "_": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "1",
+    "prev1": "2",
+    "_": "3"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "2",
+    "prev1": "3",
+    "_": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "2",
+    "prev1": "3",
+    "_": "4"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "3",
+    "prev1": "5",
+    "_": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "3",
+    "prev1": "5",
+    "_": "5"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "5",
+    "prev1": "8",
+    "_": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "5",
+    "prev1": "8",
+    "_": "5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "climbing_stairs"
+   ],
+   "vars": {
+    "n": "5",
+    "prev2": "5",
+    "prev1": "8",
+    "_": "5"
+   },
+   "ret": "8"
+  }
+ ]
+}

@@ -1,0 +1,612 @@
+{
+ "problem": "word-break",
+ "block": 1,
+ "version": 2,
+ "source": "e81bfc16d706cd73",
+ "code": "def word_break(s: str, words: list[str]) -> bool:\n    vocab = set(words)\n    longest = max(len(w) for w in words)\n    n = len(s)\n    can = [False] * (n + 1)\n    can[0] = True\n    for i in range(1, n + 1):\n        for j in range(max(0, i - longest), i):\n            if can[j] and s[j:i] in vocab:\n                can[i] = True\n                break\n    return can[n]\n",
+ "args": [
+  "abcd",
+  [
+   "a",
+   "abc",
+   "b",
+   "cd"
+  ]
+ ],
+ "result": "true",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'a'"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'a'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'abc'"
+   },
+   "ret": "3"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'abc'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'b'"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'b'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'cd'"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'cd'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "word_break",
+    "<genexpr>"
+   ],
+   "vars": {
+    "w": "'cd'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 4,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[False, False, False, False, False]"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, False, False, False, False]"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, False, False, False, False]",
+    "i": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, False, False, False, False]",
+    "i": "1",
+    "j": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, False, False, False, False]",
+    "i": "1",
+    "j": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, False, False, False]",
+    "i": "1",
+    "j": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, False, False, False]",
+    "i": "1",
+    "j": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, False, False, False]",
+    "i": "2",
+    "j": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, False, False, False]",
+    "i": "2",
+    "j": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, False, False, False]",
+    "i": "2",
+    "j": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, False, False, False]",
+    "i": "2",
+    "j": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, False, False, False]",
+    "i": "2",
+    "j": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, False, False]",
+    "i": "2",
+    "j": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, False, False]",
+    "i": "2",
+    "j": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, False, False]",
+    "i": "3",
+    "j": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, False, False]",
+    "i": "3",
+    "j": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, False, False]",
+    "i": "3",
+    "j": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, False]",
+    "i": "3",
+    "j": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, False]",
+    "i": "3",
+    "j": "0"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, False]",
+    "i": "4",
+    "j": "0"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, False]",
+    "i": "4",
+    "j": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, False]",
+    "i": "4",
+    "j": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, False]",
+    "i": "4",
+    "j": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, False]",
+    "i": "4",
+    "j": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, True]",
+    "i": "4",
+    "j": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, True]",
+    "i": "4",
+    "j": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, True]",
+    "i": "4",
+    "j": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "word_break"
+   ],
+   "vars": {
+    "s": "'abcd'",
+    "words": "['a', 'abc', 'b', 'cd']",
+    "vocab": "{'a', 'b', 'cd', 'abc'}",
+    "longest": "3",
+    "n": "4",
+    "can": "[True, True, True, True, True]",
+    "i": "4",
+    "j": "2"
+   },
+   "ret": "True"
+  }
+ ]
+}

@@ -1,0 +1,582 @@
+{
+ "problem": "detect-squares",
+ "block": 1,
+ "version": 2,
+ "source": "1ba965f429c9e0ff",
+ "code": "from collections import defaultdict\n\n\nclass DetectSquares:\n    def __init__(self):\n        self.counts: dict[tuple[int, int], int] = defaultdict(int)\n\n    def add(self, point: list[int]) -> None:\n        self.counts[(point[0], point[1])] += 1\n\n    def count(self, point: list[int]) -> int:\n        x, y = point\n        total = 0\n        for (x2, y2), diag in self.counts.items():   # (x2, y2) as the diagonal\n            if x2 == x or abs(x2 - x) != abs(y2 - y):\n                continue\n            total += diag * self.counts.get((x, y2), 0) * self.counts.get((x2, y), 0)\n        return total\n",
+ "args": [
+  [
+   "__init__"
+  ],
+  [
+   "add",
+   [
+    1,
+    1
+   ]
+  ],
+  [
+   "add",
+   [
+    1,
+    4
+   ]
+  ],
+  [
+   "add",
+   [
+    4,
+    1
+   ]
+  ],
+  [
+   "count",
+   [
+    4,
+    4
+   ]
+  ],
+  [
+   "add",
+   [
+    4,
+    1
+   ]
+  ],
+  [
+   "count",
+   [
+    4,
+    4
+   ]
+  ]
+ ],
+ "result": "[null, null, null, null, 1, null, 2]",
+ "frames": [
+  {
+   "line": 6,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 6,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.counts": "{}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.counts": "{}",
+    "point": "[1, 1]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1}",
+    "point": "[1, 1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1}",
+    "point": "[1, 4]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1}",
+    "point": "[1, 4]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1}",
+    "point": "[4, 1]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "0"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "0",
+    "x2": "1",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "0",
+    "x2": "1",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "1",
+    "x2": "1",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "1",
+    "x2": "1",
+    "y2": "4",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "1",
+    "x2": "1",
+    "y2": "4",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "1",
+    "x2": "1",
+    "y2": "4",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "1",
+    "x2": "4",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "1",
+    "x2": "4",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "1",
+    "x2": "4",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "1",
+    "x2": "4",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "1",
+    "x2": "4",
+    "y2": "1",
+    "diag": "1"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 1}",
+    "point": "[4, 1]"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 1]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 12,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "0"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "0",
+    "x2": "1",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "0",
+    "x2": "1",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "2",
+    "x2": "1",
+    "y2": "1",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "2",
+    "x2": "1",
+    "y2": "4",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "2",
+    "x2": "1",
+    "y2": "4",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "2",
+    "x2": "1",
+    "y2": "4",
+    "diag": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "2",
+    "x2": "4",
+    "y2": "1",
+    "diag": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "2",
+    "x2": "4",
+    "y2": "1",
+    "diag": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "2",
+    "x2": "4",
+    "y2": "1",
+    "diag": "2"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "2",
+    "x2": "4",
+    "y2": "1",
+    "diag": "2"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "count"
+   ],
+   "vars": {
+    "self.counts": "{(1, 1): 1, (1, 4): 1, (4, 1): 2}",
+    "point": "[4, 4]",
+    "x": "4",
+    "y": "4",
+    "total": "2",
+    "x2": "4",
+    "y2": "1",
+    "diag": "2"
+   },
+   "ret": "2"
+  }
+ ]
+}

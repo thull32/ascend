@@ -1,0 +1,292 @@
+{
+ "problem": "max-product-subarray",
+ "block": 2,
+ "version": 2,
+ "source": "06869d3d669005a8",
+ "code": "def max_product(nums: list[int]) -> int:\n    hi = lo = best = nums[0]\n    for x in nums[1:]:\n        candidates = (x, hi * x, lo * x)\n        hi, lo = max(candidates), min(candidates)   # both computed from the old pair\n        best = max(best, hi)\n    return best\n",
+ "args": [
+  [
+   2,
+   -5,
+   -2,
+   -4,
+   3
+  ]
+ ],
+ "result": "24",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "2",
+    "lo": "2",
+    "best": "2"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "2",
+    "lo": "2",
+    "best": "2",
+    "x": "-5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "2",
+    "lo": "2",
+    "best": "2",
+    "x": "-5",
+    "candidates": "(-5, -10, -10)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "-5",
+    "lo": "-10",
+    "best": "2",
+    "x": "-5",
+    "candidates": "(-5, -10, -10)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "-5",
+    "lo": "-10",
+    "best": "2",
+    "x": "-5",
+    "candidates": "(-5, -10, -10)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "-5",
+    "lo": "-10",
+    "best": "2",
+    "x": "-2",
+    "candidates": "(-5, -10, -10)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "-5",
+    "lo": "-10",
+    "best": "2",
+    "x": "-2",
+    "candidates": "(-2, 10, 20)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "20",
+    "lo": "-2",
+    "best": "2",
+    "x": "-2",
+    "candidates": "(-2, 10, 20)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "20",
+    "lo": "-2",
+    "best": "20",
+    "x": "-2",
+    "candidates": "(-2, 10, 20)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "20",
+    "lo": "-2",
+    "best": "20",
+    "x": "-4",
+    "candidates": "(-2, 10, 20)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "20",
+    "lo": "-2",
+    "best": "20",
+    "x": "-4",
+    "candidates": "(-4, -80, 8)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "8",
+    "lo": "-80",
+    "best": "20",
+    "x": "-4",
+    "candidates": "(-4, -80, 8)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "8",
+    "lo": "-80",
+    "best": "20",
+    "x": "-4",
+    "candidates": "(-4, -80, 8)"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "8",
+    "lo": "-80",
+    "best": "20",
+    "x": "3",
+    "candidates": "(-4, -80, 8)"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "8",
+    "lo": "-80",
+    "best": "20",
+    "x": "3",
+    "candidates": "(3, 24, -240)"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "24",
+    "lo": "-240",
+    "best": "20",
+    "x": "3",
+    "candidates": "(3, 24, -240)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "24",
+    "lo": "-240",
+    "best": "24",
+    "x": "3",
+    "candidates": "(3, 24, -240)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "24",
+    "lo": "-240",
+    "best": "24",
+    "x": "3",
+    "candidates": "(3, 24, -240)"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "max_product"
+   ],
+   "vars": {
+    "nums": "[2, -5, -2, -4, 3]",
+    "hi": "24",
+    "lo": "-240",
+    "best": "24",
+    "x": "3",
+    "candidates": "(3, 24, -240)"
+   },
+   "ret": "24"
+  }
+ ]
+}

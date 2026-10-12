@@ -1,0 +1,728 @@
+{
+ "problem": "spiral-matrix-ii",
+ "block": 1,
+ "version": 2,
+ "source": "5f15909849ee16fb",
+ "code": "def generate_matrix(n: int) -> list[list[int]]:\n    grid = [[0] * n for _ in range(n)]        # not [[0] * n] * n: rows would alias\n    top, bottom, left, right = 0, n - 1, 0, n - 1\n    k = 1\n    while k <= n * n:\n        for c in range(left, right + 1):       # top row, left to right\n            grid[top][c] = k; k += 1\n        top += 1\n        for r in range(top, bottom + 1):       # right column, downwards\n            grid[r][right] = k; k += 1\n        right -= 1\n        for c in range(right, left - 1, -1):   # bottom row, right to left\n            grid[bottom][c] = k; k += 1\n        bottom -= 1\n        for r in range(bottom, top - 1, -1):   # left column, upwards\n            grid[r][left] = k; k += 1\n        left += 1\n    return grid\n",
+ "args": [
+  3
+ ],
+ "result": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "_": "0"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "_": "1"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "_": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[0, 0, 0], [0, 0, 0], [0, 0, 0]]"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[0, 0, 0], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[0, 0, 0], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[0, 0, 0], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[0, 0, 0], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "1",
+    "c": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 0, 0], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "2",
+    "c": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 0, 0], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "2",
+    "c": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 0], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "3",
+    "c": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 0], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "3",
+    "c": "2"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "4",
+    "c": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 0], [0, 0, 0]]",
+    "top": "0",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "4",
+    "c": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 0], [0, 0, 0]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "4",
+    "c": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 0], [0, 0, 0]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "4",
+    "c": "2",
+    "r": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [0, 0, 0]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "5",
+    "c": "2",
+    "r": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [0, 0, 0]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "5",
+    "c": "2",
+    "r": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [0, 0, 5]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "6",
+    "c": "2",
+    "r": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [0, 0, 5]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "2",
+    "k": "6",
+    "c": "2",
+    "r": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [0, 0, 5]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "1",
+    "k": "6",
+    "c": "2",
+    "r": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [0, 0, 5]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "1",
+    "k": "6",
+    "c": "1",
+    "r": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [0, 6, 5]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "1",
+    "k": "7",
+    "c": "1",
+    "r": "2"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [0, 6, 5]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "1",
+    "k": "7",
+    "c": "0",
+    "r": "2"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "1",
+    "k": "8",
+    "c": "0",
+    "r": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "2",
+    "left": "0",
+    "right": "1",
+    "k": "8",
+    "c": "0",
+    "r": "2"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "1",
+    "left": "0",
+    "right": "1",
+    "k": "8",
+    "c": "0",
+    "r": "2"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [0, 0, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "1",
+    "left": "0",
+    "right": "1",
+    "k": "8",
+    "c": "0",
+    "r": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 0, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "1",
+    "left": "0",
+    "right": "1",
+    "k": "9",
+    "c": "0",
+    "r": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 0, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "1",
+    "left": "0",
+    "right": "1",
+    "k": "9",
+    "c": "0",
+    "r": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 0, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "1",
+    "left": "1",
+    "right": "1",
+    "k": "9",
+    "c": "0",
+    "r": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 0, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "1",
+    "left": "1",
+    "right": "1",
+    "k": "9",
+    "c": "0",
+    "r": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 0, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "1",
+    "left": "1",
+    "right": "1",
+    "k": "9",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "1",
+    "left": "1",
+    "right": "1",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "1",
+    "bottom": "1",
+    "left": "1",
+    "right": "1",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "2",
+    "bottom": "1",
+    "left": "1",
+    "right": "1",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "2",
+    "bottom": "1",
+    "left": "1",
+    "right": "1",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "2",
+    "bottom": "1",
+    "left": "1",
+    "right": "0",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "2",
+    "bottom": "1",
+    "left": "1",
+    "right": "0",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "2",
+    "bottom": "0",
+    "left": "1",
+    "right": "0",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "2",
+    "bottom": "0",
+    "left": "1",
+    "right": "0",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "2",
+    "bottom": "0",
+    "left": "2",
+    "right": "0",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "2",
+    "bottom": "0",
+    "left": "2",
+    "right": "0",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "generate_matrix"
+   ],
+   "vars": {
+    "n": "3",
+    "grid": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]",
+    "top": "2",
+    "bottom": "0",
+    "left": "2",
+    "right": "0",
+    "k": "10",
+    "c": "1",
+    "r": "1"
+   },
+   "ret": "[[1, 2, 3], [8, 9, 4], [7, 6, 5]]"
+  }
+ ]
+}

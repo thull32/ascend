@@ -1,0 +1,335 @@
+{
+ "problem": "remove-nth-from-end",
+ "block": 1,
+ "version": 2,
+ "source": "c60547a52cef7485",
+ "code": "def remove_nth_from_end(head: ListNode | None, n: int) -> ListNode | None:\n    dummy = ListNode(0, head)\n    lead = dummy\n    trail = dummy\n    for _ in range(n + 1):\n        lead = lead.next\n    while lead is not None:\n        lead = lead.next\n        trail = trail.next\n    trail.next = trail.next.next\n    return dummy.next\n",
+ "args": [
+  {
+   "$list": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ]
+  },
+  2
+ ],
+ "result": "{\"$list\": [1, 2, 3, 5]}",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "0 → 1 → 2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "0 → 1 → 2 → 3 → 4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "0 → 1 → 2 → 3 → 4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "0"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "1 → 2 → 3 → 4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "1 → 2 → 3 → 4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "2 → 3 → 4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "1"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "2 → 3 → 4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "3 → 4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "3 → 4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "3 → 4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "4 → 5",
+    "trail": "0 → 1 → 2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "4 → 5",
+    "trail": "1 → 2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "4 → 5",
+    "trail": "1 → 2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "5",
+    "trail": "1 → 2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "5",
+    "trail": "2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "5",
+    "trail": "2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "None",
+    "trail": "2 → 3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "None",
+    "trail": "3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 4 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 4 → 5",
+    "lead": "None",
+    "trail": "3 → 4 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 5",
+    "lead": "None",
+    "trail": "3 → 5",
+    "_": "2"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "remove_nth_from_end"
+   ],
+   "vars": {
+    "head": "1 → 2 → 3 → 5",
+    "n": "2",
+    "dummy": "0 → 1 → 2 → 3 → 5",
+    "lead": "None",
+    "trail": "3 → 5",
+    "_": "2"
+   },
+   "ret": "1 → 2 → 3 → 5"
+  }
+ ]
+}

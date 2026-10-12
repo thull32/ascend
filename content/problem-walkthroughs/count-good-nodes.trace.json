@@ -1,0 +1,743 @@
+{
+ "problem": "count-good-nodes",
+ "block": 1,
+ "version": 2,
+ "source": "4f38e0d2a868f85a",
+ "code": "def good_nodes(root: TreeNode | None) -> int:\n    def dfs(node: TreeNode | None, max_so_far: int) -> int:\n        if node is None:\n            return 0\n        good = 1 if node.val >= max_so_far else 0\n        max_so_far = max(max_so_far, node.val)\n        return good + dfs(node.left, max_so_far) + dfs(node.right, max_so_far)\n\n    return dfs(root, float(\"-inf\")) if root is not None else 0\n",
+ "args": [
+  {
+   "$tree": [
+    3,
+    1,
+    4,
+    3,
+    null,
+    1,
+    5
+   ]
+  }
+ ],
+ "result": "4",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "good_nodes"
+   ],
+   "vars": {
+    "root": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "good_nodes"
+   ],
+   "vars": {
+    "root": "TreeNode(3)"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "-inf"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "good_nodes",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "-inf"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "good_nodes",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "-inf",
+    "good": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "3",
+    "good": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "3",
+    "good": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "3",
+    "good": "0"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "3",
+    "good": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "3",
+    "good": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "3"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "3"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "3",
+    "good": "1"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "3"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "3",
+    "good": "0"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "max_so_far": "3"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "max_so_far": "3",
+    "good": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "max_so_far": "4",
+    "good": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "4",
+    "good": "0"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "4",
+    "good": "0"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "4"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "4"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "4"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(1)",
+    "max_so_far": "4",
+    "good": "0"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(5)",
+    "max_so_far": "4"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(5)",
+    "max_so_far": "4"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(5)",
+    "max_so_far": "4",
+    "good": "1"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(5)",
+    "max_so_far": "5",
+    "good": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "5"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 3,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "5"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "None",
+    "max_so_far": "5"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(5)",
+    "max_so_far": "5",
+    "good": "1"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(4)",
+    "max_so_far": "4",
+    "good": "1"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 7,
+   "stack": [
+    "good_nodes",
+    "dfs"
+   ],
+   "vars": {
+    "node": "TreeNode(3)",
+    "max_so_far": "3",
+    "good": "1"
+   },
+   "ret": "4"
+  },
+  {
+   "line": 9,
+   "stack": [
+    "good_nodes"
+   ],
+   "vars": {
+    "root": "TreeNode(3)"
+   },
+   "ret": "4"
+  }
+ ]
+}
