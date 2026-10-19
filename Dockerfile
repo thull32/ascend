@@ -15,7 +15,7 @@
 # a content-only change rebuilds in about a minute.
 
 # ---------- web ----------
-FROM node:24-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS web
+FROM node:24-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315 AS web
 WORKDIR /app/web
 RUN corepack enable
 # The workspace file carries pnpm settings the lockfile records (overrides),
@@ -74,7 +74,7 @@ COPY --from=runtimes /opt/ascend/grader /opt/ascend/grader
 RUN /ascend-api --prepare-grader /opt/ascend/grader
 
 # ---------- runtime ----------
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:54df941ed0d06a1bd95ef5e0ce391fd8d9f94b64782dc9a60062727849ee3f97 AS runtime
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2 AS runtime
 COPY --from=builder /ascend-api /usr/local/bin/ascend-api
 COPY --from=builder /opt/ascend/grader /opt/ascend/grader
 ENV APP_ENV=production \
