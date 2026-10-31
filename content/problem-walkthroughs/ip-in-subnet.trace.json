@@ -1,0 +1,579 @@
+{
+ "problem": "ip-in-subnet",
+ "block": 1,
+ "version": 2,
+ "source": "bc5d76ef02c3ccdb",
+ "code": "FULL = 0xFFFFFFFF                                    # 32 one bits\n\n\ndef _to_int(addr: str) -> int:\n    a, b, c, d = (int(part) for part in addr.split(\".\"))\n    return (a << 24) | (b << 16) | (c << 8) | d\n\n\ndef ip_in_subnet(cidr: str, addresses: list[str]) -> list[bool]:\n    block, length = cidr.split(\"/\")\n    length = int(length)\n    mask = (FULL << (32 - length)) & FULL            # L ones, then 32 - L zeros; /0 gives 0\n    network = _to_int(block) & mask                  # discards host bits in the input\n    return [(_to_int(addr) & mask) == network for addr in addresses]\n",
+ "args": [
+  "10.254.19.9/20",
+  [
+   "10.254.31.255",
+   "10.254.32.0"
+  ]
+ ],
+ "result": "[true, false]",
+ "frames": [
+  {
+   "line": 10,
+   "stack": [
+    "ip_in_subnet"
+   ],
+   "vars": {
+    "cidr": "'10.254.19.9/20'",
+    "addresses": "['10.254.31.255', '10.254.32.0']"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "ip_in_subnet"
+   ],
+   "vars": {
+    "cidr": "'10.254.19.9/20'",
+    "addresses": "['10.254.31.255', '10.254.32.0']",
+    "block": "'10.254.19.9'",
+    "length": "'20'"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "ip_in_subnet"
+   ],
+   "vars": {
+    "cidr": "'10.254.19.9/20'",
+    "addresses": "['10.254.31.255', '10.254.32.0']",
+    "block": "'10.254.19.9'",
+    "length": "20"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "ip_in_subnet"
+   ],
+   "vars": {
+    "cidr": "'10.254.19.9/20'",
+    "addresses": "['10.254.31.255', '10.254.32.0']",
+    "block": "'10.254.19.9'",
+    "length": "20",
+    "mask": "4294963200"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'10.254.19.9'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   },
+   "ret": "10"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'254'"
+   },
+   "ret": "254"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'254'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'19'"
+   },
+   "ret": "19"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'19'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'9'"
+   },
+   "ret": "9"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'9'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'9'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'10.254.19.9'",
+    "a": "10",
+    "b": "254",
+    "c": "19",
+    "d": "9"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'10.254.19.9'",
+    "a": "10",
+    "b": "254",
+    "c": "19",
+    "d": "9"
+   },
+   "ret": "184423177"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "ip_in_subnet"
+   ],
+   "vars": {
+    "cidr": "'10.254.19.9/20'",
+    "addresses": "['10.254.31.255', '10.254.32.0']",
+    "block": "'10.254.19.9'",
+    "length": "20",
+    "mask": "4294963200",
+    "network": "184422400"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'10.254.31.255'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   },
+   "ret": "10"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'254'"
+   },
+   "ret": "254"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'254'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'31'"
+   },
+   "ret": "31"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'31'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'255'"
+   },
+   "ret": "255"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'255'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'255'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'10.254.31.255'",
+    "a": "10",
+    "b": "254",
+    "c": "31",
+    "d": "255"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'10.254.31.255'",
+    "a": "10",
+    "b": "254",
+    "c": "31",
+    "d": "255"
+   },
+   "ret": "184426495"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "ip_in_subnet"
+   ],
+   "vars": {
+    "cidr": "'10.254.19.9/20'",
+    "addresses": "['10.254.31.255', '10.254.32.0']",
+    "block": "'10.254.19.9'",
+    "length": "20",
+    "mask": "4294963200",
+    "network": "184422400",
+    "addr": "'10.254.31.255'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'10.254.32.0'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   },
+   "ret": "10"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'254'"
+   },
+   "ret": "254"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'254'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'32'"
+   },
+   "ret": "32"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'32'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'10.254.32.0'",
+    "a": "10",
+    "b": "254",
+    "c": "32",
+    "d": "0"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "ip_in_subnet",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'10.254.32.0'",
+    "a": "10",
+    "b": "254",
+    "c": "32",
+    "d": "0"
+   },
+   "ret": "184426496"
+  },
+  {
+   "line": 14,
+   "stack": [
+    "ip_in_subnet"
+   ],
+   "vars": {
+    "cidr": "'10.254.19.9/20'",
+    "addresses": "['10.254.31.255', '10.254.32.0']",
+    "block": "'10.254.19.9'",
+    "length": "20",
+    "mask": "4294963200",
+    "network": "184422400",
+    "addr": "'10.254.32.0'"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "ip_in_subnet"
+   ],
+   "vars": {
+    "cidr": "'10.254.19.9/20'",
+    "addresses": "['10.254.31.255', '10.254.32.0']",
+    "block": "'10.254.19.9'",
+    "length": "20",
+    "mask": "4294963200",
+    "network": "184422400"
+   },
+   "ret": "[True, False]"
+  }
+ ]
+}

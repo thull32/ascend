@@ -1,0 +1,1568 @@
+{
+ "problem": "spf-next-hops",
+ "block": 1,
+ "version": 2,
+ "source": "6ab3ebdc3a63317c",
+ "code": "import heapq\n\nUNUSABLE = 16_777_215  # 2^24 - 1: the wide-metric \"never use this link\" value\n\n\ndef spf_next_hops(links: list[list], source: str) -> dict[str, dict]:\n    adj: dict[str, dict[str, int]] = {}\n    for a, b, metric in links:\n        if metric >= UNUSABLE or a == b:\n            continue\n        nbrs = adj.setdefault(a, {})\n        if b not in nbrs or metric < nbrs[b]:\n            nbrs[b] = metric                         # parallel links: lowest metric\n\n    dist = {source: 0}\n    hops: dict[str, set[str]] = {source: set()}\n    done: set[str] = set()\n    heap = [(0, source)]\n    while heap:\n        d, u = heapq.heappop(heap)\n        if u in done:\n            continue                                 # a stale heap entry\n        done.add(u)                                  # dist[u] and hops[u] are final\n        for v, metric in adj.get(u, {}).items():\n            nd = d + metric\n            via = {v} if u == source else hops[u]\n            if v not in dist or nd < dist[v]:\n                dist[v] = nd\n                hops[v] = set(via)                   # strictly better: replace\n                heapq.heappush(heap, (nd, v))\n            elif nd == dist[v]:\n                hops[v] |= via                       # a tie: merge first hops\n    return {\n        v: {\"cost\": dist[v], \"next_hops\": sorted(hops[v])}\n        for v in dist\n        if v != source\n    }\n",
+ "args": [
+  [
+   [
+    "leaf1.ams",
+    "spine1.ams",
+    10
+   ],
+   [
+    "spine1.ams",
+    "leaf2.ams",
+    10
+   ],
+   [
+    "leaf2.ams",
+    "leaf1.ams",
+    16777215
+   ],
+   [
+    "leaf1.ams",
+    "leaf2.ams",
+    20
+   ]
+  ],
+  "leaf1.ams"
+ ],
+ "result": "{\"spine1.ams\": {\"cost\": 10, \"next_hops\": [\"spine1.ams\"]}, \"leaf2.ams\": {\"cost\": 20, \"next_hops\": [\"leaf2.ams\", \"spine1.ams\"]}}",
+ "frames": [
+  {
+   "line": 7,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{}",
+    "a": "'leaf1.ams'",
+    "b": "'spine1.ams'",
+    "metric": "10"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{}",
+    "a": "'leaf1.ams'",
+    "b": "'spine1.ams'",
+    "metric": "10"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {}}",
+    "a": "'leaf1.ams'",
+    "b": "'spine1.ams'",
+    "metric": "10",
+    "nbrs": "{}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {}}",
+    "a": "'leaf1.ams'",
+    "b": "'spine1.ams'",
+    "metric": "10",
+    "nbrs": "{}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'spine1.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}}",
+    "a": "'spine1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}}",
+    "a": "'spine1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {}}",
+    "a": "'spine1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {}}",
+    "a": "'spine1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'spine1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'leaf2.ams': 10}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf2.ams'",
+    "b": "'leaf1.ams'",
+    "metric": "16777215",
+    "nbrs": "{'leaf2.ams': 10}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf2.ams'",
+    "b": "'leaf1.ams'",
+    "metric": "16777215",
+    "nbrs": "{'leaf2.ams': 10}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf2.ams'",
+    "b": "'leaf1.ams'",
+    "metric": "16777215",
+    "nbrs": "{'leaf2.ams': 10}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'leaf2.ams': 10}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'leaf2.ams': 10}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "set()"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "set()",
+    "heap": "[(0, 'leaf1.ams')]"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "set()",
+    "heap": "[(0, 'leaf1.ams')]"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "set()",
+    "heap": "[]",
+    "d": "0",
+    "u": "'leaf1.ams'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "set()",
+    "heap": "[]",
+    "d": "0",
+    "u": "'leaf1.ams'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[]",
+    "d": "0",
+    "u": "'leaf1.ams'"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'spine1.ams'"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'spine1.ams'",
+    "nd": "10"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'spine1.ams'",
+    "nd": "10",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'spine1.ams'",
+    "nd": "10",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10}",
+    "hops": "{'leaf1.ams': set()}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'spine1.ams'",
+    "nd": "10",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'spine1.ams'",
+    "nd": "10",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'spine1.ams'",
+    "nd": "10",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "10",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams'), (20, 'leaf2.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams'), (20, 'leaf2.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(10, 'spine1.ams'), (20, 'leaf2.ams')]",
+    "d": "0",
+    "u": "'leaf1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "20",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'leaf2.ams'}"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[(20, 'leaf2.ams')]",
+    "d": "10",
+    "u": "'spine1.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf1.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf1.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf1.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'spine1.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'spine1.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'spine1.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "spf_next_hops"
+   ],
+   "vars": {
+    "links": "[['leaf1.ams', 'spine1.ams', 10], ['spine1.ams', 'leaf2.ams', 10], ['leaf2.ams', 'leaf1.ams', 16777215], ['leaf1.ams', 'leaf2.ams', 20]]",
+    "source": "'leaf1.ams'",
+    "adj": "{'leaf1.ams': {'spine1.ams': 10, 'leaf2.ams': 20}, 'spine1.ams': {'leaf2.ams': 10}}",
+    "a": "'leaf1.ams'",
+    "b": "'leaf2.ams'",
+    "metric": "10",
+    "nbrs": "{'spine1.ams': 10, 'leaf2.ams': 20}",
+    "dist": "{'leaf1.ams': 0, 'spine1.ams': 10, 'leaf2.ams': 20}",
+    "hops": "{'leaf1.ams': set(), 'spine1.ams': {'spine1.ams'}, 'leaf2.ams': {'leaf2.ams', 'spine1.ams'}}",
+    "done": "{'leaf1.ams', 'leaf2.ams', 'spine1.ams'}",
+    "heap": "[]",
+    "d": "20",
+    "u": "'leaf2.ams'",
+    "v": "'leaf2.ams'",
+    "nd": "20",
+    "via": "{'spine1.ams'}"
+   },
+   "ret": "{'spine1.ams': {'cost': 10, 'next_hops': ['spine1.ams']}, 'leaf2.ams': {'cost': 20, 'next_hops': ['leaf2.ams', 'spine1.ams']}}"
+  }
+ ]
+}

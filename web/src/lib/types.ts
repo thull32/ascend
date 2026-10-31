@@ -291,7 +291,7 @@ export interface ChatMessage {
   created_at: string;
 }
 
-export type InterviewKind = "coding" | "system_design" | "behavioral";
+export type InterviewKind = "coding" | "system_design" | "behavioral" | "networking";
 export type AssistantMode = "solo" | "assisted";
 
 export interface TranscriptEntry {

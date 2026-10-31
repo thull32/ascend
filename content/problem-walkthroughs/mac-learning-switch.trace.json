@@ -1,0 +1,1330 @@
+{
+ "problem": "mac-learning-switch",
+ "block": 1,
+ "version": 2,
+ "source": "e3b0ef7607b00e47",
+ "code": "from collections import OrderedDict\n\n\ndef _is_group(mac: str) -> bool:\n    # The group bit is the lowest bit of the first byte.\n    return int(mac[:2], 16) & 1 == 1\n\n\nclass LearningSwitch:\n    def __init__(self, ports: list, aging: int):\n        self.aging = aging\n        self.members: dict[int, set[int]] = {}      # port -> VLANs it carries\n        self.vlan_ports: dict[int, list[int]] = {}  # VLAN -> member ports, ascending\n        for port, vlans in ports:\n            self.members[port] = set(vlans)\n            for vlan in vlans:\n                self.vlan_ports.setdefault(vlan, []).append(port)\n        for plist in self.vlan_ports.values():\n            plist.sort()\n        # (vlan, mac) -> (port, last_seen), kept in last_seen order: oldest first.\n        self.table: OrderedDict[tuple[int, str], tuple[int, int]] = OrderedDict()\n\n    def _expire(self, now: int) -> None:\n        table = self.table\n        while table:\n            _, (_, seen) = next(iter(table.items()))\n            if now - seen <= self.aging:\n                break\n            table.popitem(last=False)\n\n    def _flood(self, vlan: int, in_port: int) -> list[int]:\n        return [p for p in self.vlan_ports[vlan] if p != in_port]\n\n    def receive(self, time: int, port: int, vlan: int, src: str, dst: str) -> list[int]:\n        if vlan not in self.members.get(port, ()):\n            return []                       # ingress filtering: not this port's VLAN\n        if _is_group(src):\n            return []                       # a group address cannot be a sender\n        self._expire(time)\n        key = (vlan, src)\n        self.table[key] = (port, time)      # learn, or move and refresh\n        self.table.move_to_end(key)         # newest last keeps the order by last_seen\n        if _is_group(dst):\n            return self._flood(vlan, port)\n        entry = self.table.get((vlan, dst))\n        if entry is None:\n            return self._flood(vlan, port)  # unknown unicast\n        return [] if entry[0] == port else [entry[0]]\n\n    def lookup(self, time: int, vlan: int, mac: str) -> int:\n        self._expire(time)\n        entry = self.table.get((vlan, mac))\n        return -1 if entry is None else entry[0]\n\n    def table_size(self, time: int) -> int:\n        self._expire(time)\n        return len(self.table)\n",
+ "args": [
+  [
+   "__init__",
+   [
+    [
+     1,
+     [
+      1
+     ]
+    ],
+    [
+     2,
+     [
+      1
+     ]
+    ],
+    [
+     3,
+     [
+      1
+     ]
+    ]
+   ],
+   10
+  ],
+  [
+   "receive",
+   0,
+   1,
+   1,
+   "00:00:5e:00:53:0a",
+   "00:00:5e:00:53:0b"
+  ],
+  [
+   "receive",
+   4,
+   2,
+   1,
+   "00:00:5e:00:53:0b",
+   "00:00:5e:00:53:0a"
+  ],
+  [
+   "table_size",
+   12
+  ]
+ ],
+ "result": "[null, [2, 3], [1], 1]",
+ "frames": [
+  {
+   "line": 11,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{}",
+    "self.vlan_ports": "{}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{}",
+    "self.vlan_ports": "{}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "1",
+    "vlans": "[1]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}}",
+    "self.vlan_ports": "{}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "1",
+    "vlans": "[1]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}}",
+    "self.vlan_ports": "{}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "1",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}}",
+    "self.vlan_ports": "{1: [1]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "1",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}}",
+    "self.vlan_ports": "{1: [1]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "1",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}}",
+    "self.vlan_ports": "{1: [1]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "2",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}}",
+    "self.vlan_ports": "{1: [1]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "2",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}}",
+    "self.vlan_ports": "{1: [1]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "2",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}}",
+    "self.vlan_ports": "{1: [1, 2]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "2",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}}",
+    "self.vlan_ports": "{1: [1, 2]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "2",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}}",
+    "self.vlan_ports": "{1: [1, 2]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1",
+    "plist": "[1, 2, 3]"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1",
+    "plist": "[1, 2, 3]"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1",
+    "plist": "[1, 2, 3]"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{}",
+    "ports": "[[1, [1]], [2, [1]], [3, [1]]]",
+    "aging": "10",
+    "port": "3",
+    "vlans": "[1]",
+    "vlan": "1",
+    "plist": "[1, 2, 3]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 35,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'"
+   }
+  },
+  {
+   "line": 37,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "receive",
+    "_is_group"
+   ],
+   "vars": {
+    "mac": "'00:00:5e:00:53:0a'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "receive",
+    "_is_group"
+   ],
+   "vars": {
+    "mac": "'00:00:5e:00:53:0a'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 39,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "receive",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{}",
+    "now": "0"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "receive",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{}",
+    "now": "0",
+    "table": "{}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "receive",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{}",
+    "now": "0",
+    "table": "{}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 40,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'"
+   }
+  },
+  {
+   "line": 41,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'",
+    "key": "(1, '00:00:5e:00:53:0a')"
+   }
+  },
+  {
+   "line": 42,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'",
+    "key": "(1, '00:00:5e:00:53:0a')"
+   }
+  },
+  {
+   "line": 43,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'",
+    "key": "(1, '00:00:5e:00:53:0a')"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "receive",
+    "_is_group"
+   ],
+   "vars": {
+    "mac": "'00:00:5e:00:53:0b'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "receive",
+    "_is_group"
+   ],
+   "vars": {
+    "mac": "'00:00:5e:00:53:0b'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 45,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'",
+    "key": "(1, '00:00:5e:00:53:0a')"
+   }
+  },
+  {
+   "line": 46,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'",
+    "key": "(1, '00:00:5e:00:53:0a')",
+    "entry": "None"
+   }
+  },
+  {
+   "line": 47,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'",
+    "key": "(1, '00:00:5e:00:53:0a')",
+    "entry": "None"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "receive",
+    "_flood"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "vlan": "1",
+    "in_port": "1"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "receive",
+    "_flood"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "vlan": "1",
+    "in_port": "1",
+    "p": "1"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "receive",
+    "_flood"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "vlan": "1",
+    "in_port": "1",
+    "p": "2"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "receive",
+    "_flood"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "vlan": "1",
+    "in_port": "1",
+    "p": "3"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "receive",
+    "_flood"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "vlan": "1",
+    "in_port": "1"
+   },
+   "ret": "[2, 3]"
+  },
+  {
+   "line": 47,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "0",
+    "port": "1",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0a'",
+    "dst": "'00:00:5e:00:53:0b'",
+    "key": "(1, '00:00:5e:00:53:0a')",
+    "entry": "None"
+   },
+   "ret": "[2, 3]"
+  },
+  {
+   "line": 35,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'"
+   }
+  },
+  {
+   "line": 37,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "receive",
+    "_is_group"
+   ],
+   "vars": {
+    "mac": "'00:00:5e:00:53:0b'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "receive",
+    "_is_group"
+   ],
+   "vars": {
+    "mac": "'00:00:5e:00:53:0b'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 39,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "receive",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "now": "4"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "receive",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "now": "4",
+    "table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "receive",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "now": "4",
+    "table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "receive",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "now": "4",
+    "table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "_": "1",
+    "seen": "0"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "receive",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "now": "4",
+    "table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "_": "1",
+    "seen": "0"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "receive",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "now": "4",
+    "table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "_": "1",
+    "seen": "0"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 40,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'"
+   }
+  },
+  {
+   "line": 41,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'",
+    "key": "(1, '00:00:5e:00:53:0b')"
+   }
+  },
+  {
+   "line": 42,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'",
+    "key": "(1, '00:00:5e:00:53:0b')"
+   }
+  },
+  {
+   "line": 43,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'",
+    "key": "(1, '00:00:5e:00:53:0b')"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "receive",
+    "_is_group"
+   ],
+   "vars": {
+    "mac": "'00:00:5e:00:53:0a'"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "receive",
+    "_is_group"
+   ],
+   "vars": {
+    "mac": "'00:00:5e:00:53:0a'"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 45,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'",
+    "key": "(1, '00:00:5e:00:53:0b')"
+   }
+  },
+  {
+   "line": 46,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'",
+    "key": "(1, '00:00:5e:00:53:0b')",
+    "entry": "(1, 0)"
+   }
+  },
+  {
+   "line": 48,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'",
+    "key": "(1, '00:00:5e:00:53:0b')",
+    "entry": "(1, 0)"
+   }
+  },
+  {
+   "line": 48,
+   "stack": [
+    "receive"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "time": "4",
+    "port": "2",
+    "vlan": "1",
+    "src": "'00:00:5e:00:53:0b'",
+    "dst": "'00:00:5e:00:53:0a'",
+    "key": "(1, '00:00:5e:00:53:0b')",
+    "entry": "(1, 0)"
+   },
+   "ret": "[1]"
+  },
+  {
+   "line": 56,
+   "stack": [
+    "table_size"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "time": "12"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12",
+    "table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12",
+    "table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12",
+    "table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "_": "1",
+    "seen": "0"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12",
+    "table": "{(1, '00:00:5e:00:53:0a'): (1, 0), (1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "_": "1",
+    "seen": "0"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12",
+    "table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "_": "1",
+    "seen": "0"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12",
+    "table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "_": "1",
+    "seen": "0"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12",
+    "table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "_": "2",
+    "seen": "4"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12",
+    "table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "_": "2",
+    "seen": "4"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "table_size",
+    "_expire"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "now": "12",
+    "table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "_": "2",
+    "seen": "4"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 57,
+   "stack": [
+    "table_size"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "time": "12"
+   }
+  },
+  {
+   "line": 57,
+   "stack": [
+    "table_size"
+   ],
+   "vars": {
+    "self.aging": "10",
+    "self.members": "{1: {1}, 2: {1}, 3: {1}}",
+    "self.vlan_ports": "{1: [1, 2, 3]}",
+    "self.table": "{(1, '00:00:5e:00:53:0b'): (2, 4)}",
+    "time": "12"
+   },
+   "ret": "1"
+  }
+ ]
+}

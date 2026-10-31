@@ -1391,6 +1391,51 @@ async fn a_learner_has_at_most_one_active_interview_and_solo_locks_the_coach() {
 }
 
 #[tokio::test]
+async fn a_networking_interview_starts_from_the_networking_bank() {
+    use ascend_core::services::interviews::{AssistantMode, InterviewKind, NETWORKING_PROMPTS, StartInterview};
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+
+    // The kind is part of the API: it parses (so the request reaches the AI
+    // check) where an unknown kind is refused as invalid input.
+    let start = |kind: &str| json!({"kind": kind, "assistant_mode": "solo"});
+    let networking = app.call("POST", "/api/interviews", Some(start("networking")), Some(&cookie), true).await;
+    assert_eq!(networking.status, StatusCode::SERVICE_UNAVAILABLE, "{:?}", networking.body);
+    assert_eq!(networking.body["code"], "ai_disabled");
+    let unknown = app.call("POST", "/api/interviews", Some(start("networks")), Some(&cookie), true).await;
+    assert_eq!(unknown.status, StatusCode::UNPROCESSABLE_ENTITY, "{:?}", unknown.body);
+
+    let prompts = app.call("GET", "/api/interviews/prompts", None, Some(&cookie), false).await;
+    assert_eq!(prompts.status, StatusCode::OK);
+    assert_eq!(prompts.body["networking"].as_array().unwrap().len(), NETWORKING_PROMPTS.len());
+
+    let started = app
+        .state
+        .interviews
+        .start(
+            id,
+            StartInterview {
+                kind: InterviewKind::Networking,
+                assistant_mode: AssistantMode::Solo,
+                problem_slug: None,
+                difficulty: None,
+                duration_minutes: None,
+                language: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(started.kind, "networking");
+    assert_eq!(started.duration_minutes, 45, "the default time box");
+    let slug = started.problem_slug.as_deref().expect("the prompt id is recorded");
+    let (_, text) = NETWORKING_PROMPTS.iter().find(|(s, _)| *s == slug).expect("a networking prompt");
+    assert_eq!(started.prompt, *text);
+    let listed = app.call("GET", "/api/interviews", None, Some(&cookie), false).await;
+    assert_eq!(listed.body[0]["kind"], "networking");
+}
+
+#[tokio::test]
 async fn activity_counts_toward_the_streak_and_is_recorded_once_per_day() {
     let Some(app) = test_app().await else { return };
     let (cookie, _) = app.register().await;

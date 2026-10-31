@@ -1,0 +1,1411 @@
+{
+ "problem": "flow-table-ttl",
+ "block": 1,
+ "version": 2,
+ "source": "d61e48be14434de1",
+ "code": "import heapq\n\n\nclass FlowTable:\n    def __init__(self, ttl: int):\n        self.ttl = ttl\n        self.records: dict[int, list] = {}   # id -> [flow_key, bytes, first_seen, last_seen]\n        self.current: dict[str, int] = {}    # flow_key -> id of its newest record\n        self.heap: list[tuple[int, str, int]] = []   # (expiry, flow_key, id)\n        self.next_id = 0\n\n    def add(self, flow_key: str, num_bytes: int, now: int) -> None:\n        rid = self.current.get(flow_key)\n        if rid is not None and self.records[rid][3] + self.ttl > now:\n            rec = self.records[rid]          # live: refresh it\n            rec[1] += num_bytes\n            rec[3] = now\n        else:                                # absent or timed out: a new record\n            rid = self.next_id\n            self.next_id += 1\n            self.records[rid] = [flow_key, num_bytes, now, now]\n            self.current[flow_key] = rid\n        heapq.heappush(self.heap, (now + self.ttl, flow_key, rid))\n\n    def get(self, flow_key: str, now: int) -> int:\n        rid = self.current.get(flow_key)\n        if rid is None:\n            return -1\n        rec = self.records[rid]\n        if rec[3] + self.ttl <= now:         # expired, not yet swept\n            return -1\n        return rec[1]\n\n    def expire(self, now: int) -> list[list]:\n        out = []\n        while self.heap and self.heap[0][0] <= now:\n            expiry, flow_key, rid = heapq.heappop(self.heap)\n            rec = self.records.get(rid)\n            if rec is None or rec[3] + self.ttl != expiry:\n                continue                     # stale: refreshed later, or already reported\n            out.append(list(rec))\n            del self.records[rid]\n            if self.current.get(flow_key) == rid:\n                del self.current[flow_key]\n        return out\n",
+ "args": [
+  [
+   "__init__",
+   10
+  ],
+  [
+   "add",
+   "pg",
+   1500,
+   0
+  ],
+  [
+   "add",
+   "dns",
+   80,
+   2
+  ],
+  [
+   "add",
+   "pg",
+   1500,
+   6
+  ],
+  [
+   "expire",
+   12
+  ],
+  [
+   "add",
+   "pg",
+   500,
+   16
+  ],
+  [
+   "get",
+   "pg",
+   17
+  ],
+  [
+   "expire",
+   30
+  ]
+ ],
+ "result": "[null, null, null, null, [[\"dns\", 80, 2, 2]], null, 500, [[\"pg\", 3000, 0, 6], [\"pg\", 500, 16, 16]]]",
+ "frames": [
+  {
+   "line": 6,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "ttl": "10"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "ttl": "10"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "ttl": "10"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "ttl": "10"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "ttl": "10"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "__init__"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "0",
+    "ttl": "10"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "0",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "0"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "0",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "0",
+    "rid": "None"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "0",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "0",
+    "rid": "None"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "0",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "0",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "1",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "0",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0]}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "1",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "0",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[]",
+    "self.next_id": "1",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "0",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(10, 'pg', 0)]",
+    "self.next_id": "1",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "0",
+    "rid": "0"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(10, 'pg', 0)]",
+    "self.next_id": "1",
+    "flow_key": "'dns'",
+    "num_bytes": "80",
+    "now": "2"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(10, 'pg', 0)]",
+    "self.next_id": "1",
+    "flow_key": "'dns'",
+    "num_bytes": "80",
+    "now": "2",
+    "rid": "None"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(10, 'pg', 0)]",
+    "self.next_id": "1",
+    "flow_key": "'dns'",
+    "num_bytes": "80",
+    "now": "2",
+    "rid": "None"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(10, 'pg', 0)]",
+    "self.next_id": "1",
+    "flow_key": "'dns'",
+    "num_bytes": "80",
+    "now": "2",
+    "rid": "1"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(10, 'pg', 0)]",
+    "self.next_id": "2",
+    "flow_key": "'dns'",
+    "num_bytes": "80",
+    "now": "2",
+    "rid": "1"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(10, 'pg', 0)]",
+    "self.next_id": "2",
+    "flow_key": "'dns'",
+    "num_bytes": "80",
+    "now": "2",
+    "rid": "1"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0)]",
+    "self.next_id": "2",
+    "flow_key": "'dns'",
+    "num_bytes": "80",
+    "now": "2",
+    "rid": "1"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1)]",
+    "self.next_id": "2",
+    "flow_key": "'dns'",
+    "num_bytes": "80",
+    "now": "2",
+    "rid": "1"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "6"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "6",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "6",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 1500, 0, 0], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "6",
+    "rid": "0",
+    "rec": "['pg', 1500, 0, 0]"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 0], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "6",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 0]"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "6",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1), (16, 'pg', 0)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "1500",
+    "now": "6",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 35,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1), (16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1), (16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 37,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(10, 'pg', 0), (12, 'dns', 1), (16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 38,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(12, 'dns', 1), (16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]",
+    "expiry": "10",
+    "flow_key": "'pg'",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 39,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(12, 'dns', 1), (16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]",
+    "expiry": "10",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 40,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(12, 'dns', 1), (16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]",
+    "expiry": "10",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(12, 'dns', 1), (16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]",
+    "expiry": "10",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 37,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(12, 'dns', 1), (16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]",
+    "expiry": "10",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 38,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]",
+    "expiry": "12",
+    "flow_key": "'dns'",
+    "rid": "1",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 39,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]",
+    "expiry": "12",
+    "flow_key": "'dns'",
+    "rid": "1",
+    "rec": "['dns', 80, 2, 2]"
+   }
+  },
+  {
+   "line": 41,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[]",
+    "expiry": "12",
+    "flow_key": "'dns'",
+    "rid": "1",
+    "rec": "['dns', 80, 2, 2]"
+   }
+  },
+  {
+   "line": 42,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 1: ['dns', 80, 2, 2]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[['dns', 80, 2, 2]]",
+    "expiry": "12",
+    "flow_key": "'dns'",
+    "rid": "1",
+    "rec": "['dns', 80, 2, 2]"
+   }
+  },
+  {
+   "line": 43,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[['dns', 80, 2, 2]]",
+    "expiry": "12",
+    "flow_key": "'dns'",
+    "rid": "1",
+    "rec": "['dns', 80, 2, 2]"
+   }
+  },
+  {
+   "line": 44,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0, 'dns': 1}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[['dns', 80, 2, 2]]",
+    "expiry": "12",
+    "flow_key": "'dns'",
+    "rid": "1",
+    "rec": "['dns', 80, 2, 2]"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[['dns', 80, 2, 2]]",
+    "expiry": "12",
+    "flow_key": "'dns'",
+    "rid": "1",
+    "rec": "['dns', 80, 2, 2]"
+   }
+  },
+  {
+   "line": 45,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[['dns', 80, 2, 2]]",
+    "expiry": "12",
+    "flow_key": "'dns'",
+    "rid": "1",
+    "rec": "['dns', 80, 2, 2]"
+   }
+  },
+  {
+   "line": 45,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "now": "12",
+    "out": "[['dns', 80, 2, 2]]",
+    "expiry": "12",
+    "flow_key": "'dns'",
+    "rid": "1",
+    "rec": "['dns', 80, 2, 2]"
+   },
+   "ret": "[['dns', 80, 2, 2]]"
+  },
+  {
+   "line": 13,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "500",
+    "now": "16"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "500",
+    "now": "16",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "500",
+    "now": "16",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "2",
+    "flow_key": "'pg'",
+    "num_bytes": "500",
+    "now": "16",
+    "rid": "2"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "num_bytes": "500",
+    "now": "16",
+    "rid": "2"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 0}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "num_bytes": "500",
+    "now": "16",
+    "rid": "2"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "num_bytes": "500",
+    "now": "16",
+    "rid": "2"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "add"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "num_bytes": "500",
+    "now": "16",
+    "rid": "2"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "now": "17"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "now": "17",
+    "rid": "2"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "now": "17",
+    "rid": "2"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "now": "17",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "now": "17",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "get"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "flow_key": "'pg'",
+    "now": "17",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   },
+   "ret": "500"
+  },
+  {
+   "line": 35,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 37,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(16, 'pg', 0), (26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[]"
+   }
+  },
+  {
+   "line": 38,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[]",
+    "expiry": "16",
+    "flow_key": "'pg'",
+    "rid": "0"
+   }
+  },
+  {
+   "line": 39,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[]",
+    "expiry": "16",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 41,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[]",
+    "expiry": "16",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 42,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{0: ['pg', 3000, 0, 6], 2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6]]",
+    "expiry": "16",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 43,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6]]",
+    "expiry": "16",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6]]",
+    "expiry": "16",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 37,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[(26, 'pg', 2)]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6]]",
+    "expiry": "16",
+    "flow_key": "'pg'",
+    "rid": "0",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 38,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6]]",
+    "expiry": "26",
+    "flow_key": "'pg'",
+    "rid": "2",
+    "rec": "['pg', 3000, 0, 6]"
+   }
+  },
+  {
+   "line": 39,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6]]",
+    "expiry": "26",
+    "flow_key": "'pg'",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   }
+  },
+  {
+   "line": 41,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6]]",
+    "expiry": "26",
+    "flow_key": "'pg'",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   }
+  },
+  {
+   "line": 42,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{2: ['pg', 500, 16, 16]}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6], ['pg', 500, 16, 16]]",
+    "expiry": "26",
+    "flow_key": "'pg'",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   }
+  },
+  {
+   "line": 43,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6], ['pg', 500, 16, 16]]",
+    "expiry": "26",
+    "flow_key": "'pg'",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   }
+  },
+  {
+   "line": 44,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{'pg': 2}",
+    "self.heap": "[]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6], ['pg', 500, 16, 16]]",
+    "expiry": "26",
+    "flow_key": "'pg'",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6], ['pg', 500, 16, 16]]",
+    "expiry": "26",
+    "flow_key": "'pg'",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   }
+  },
+  {
+   "line": 45,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6], ['pg', 500, 16, 16]]",
+    "expiry": "26",
+    "flow_key": "'pg'",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   }
+  },
+  {
+   "line": 45,
+   "stack": [
+    "expire"
+   ],
+   "vars": {
+    "self.ttl": "10",
+    "self.records": "{}",
+    "self.current": "{}",
+    "self.heap": "[]",
+    "self.next_id": "3",
+    "now": "30",
+    "out": "[['pg', 3000, 0, 6], ['pg', 500, 16, 16]]",
+    "expiry": "26",
+    "flow_key": "'pg'",
+    "rid": "2",
+    "rec": "['pg', 500, 16, 16]"
+   },
+   "ret": "[['pg', 3000, 0, 6], ['pg', 500, 16, 16]]"
+  }
+ ]
+}

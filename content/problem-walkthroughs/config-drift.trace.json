@@ -1,0 +1,1375 @@
+{
+ "problem": "config-drift",
+ "block": 1,
+ "version": 2,
+ "source": "440822a4673bc8bb",
+ "code": "def _same(a, b) -> bool:\n    if isinstance(a, bool) or isinstance(b, bool):        # bool is a subclass of int\n        return type(a) is type(b) and a == b\n    if isinstance(a, list) and isinstance(b, list):\n        return len(a) == len(b) and all(_same(x, y) for x, y in zip(a, b))\n    if isinstance(a, dict) and isinstance(b, dict):       # objects inside lists\n        return a.keys() == b.keys() and all(_same(a[k], b[k]) for k in a)\n    return type(a) is type(b) and a == b                  # 9216 is not \"9216\"\n\n\ndef config_drift(intended: dict, running: dict) -> dict[str, list[str]]:\n    added, removed, changed = [], [], []\n    stack = [(\"\", intended, running)]\n    while stack:\n        prefix, want, have = stack.pop()\n        for key in want.keys() | have.keys():\n            path = prefix + key\n            if key not in have:\n                removed.append(path)                      # a missing subtree: once, at its root\n            elif key not in want:\n                added.append(path)\n            else:\n                a, b = want[key], have[key]\n                if isinstance(a, dict) and isinstance(b, dict):\n                    stack.append((path + \".\", a, b))      # the only case that descends\n                elif not _same(a, b):\n                    changed.append(path)                  # includes object vs scalar\n    return {\"added\": sorted(added), \"removed\": sorted(removed), \"changed\": sorted(changed)}\n",
+ "args": [
+  {
+   "vrf": {
+    "ACME": {
+     "l3vni": 50001,
+     "arp-suppress": true
+    },
+    "GLOBEX": {
+     "l3vni": 50002
+    }
+   },
+   "evpn": {
+    "enable": true
+   }
+  },
+  {
+   "vrf": {
+    "ACME": {
+     "l3vni": 50001,
+     "arp-suppress": 1,
+     "rd": "10.255.1.11:50001"
+    }
+   },
+   "evpn": true
+  }
+ ],
+ "result": "{\"added\": [\"vrf.ACME.rd\"], \"removed\": [\"vrf.GLOBEX\"], \"changed\": [\"evpn\", \"vrf.ACME.arp-suppress\"]}",
+ "frames": [
+  {
+   "line": 12,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[('', {'vrf': …, 'evpn': …}, {'vrf': …, 'evpn': True})]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[('', {'vrf': …, 'evpn': …}, {'vrf': …, 'evpn': True})]"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'evpn'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'evpn'",
+    "path": "'evpn'"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'evpn'",
+    "path": "'evpn'"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'evpn'",
+    "path": "'evpn'"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'evpn'",
+    "path": "'evpn'",
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'evpn'",
+    "path": "'evpn'",
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "{'enable': True}",
+    "b": "True"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 27,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "[]",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'evpn'",
+    "path": "'evpn'",
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'evpn'",
+    "path": "'evpn'",
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'vrf'",
+    "path": "'evpn'",
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'vrf'",
+    "path": "'vrf'",
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'vrf'",
+    "path": "'vrf'",
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'vrf'",
+    "path": "'vrf'",
+    "a": "{'enable': True}",
+    "b": "True"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'vrf'",
+    "path": "'vrf'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'vrf'",
+    "path": "'vrf'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[('vrf.', {'ACME': …, 'GLOBEX': …}, {'ACME': …})]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'vrf'",
+    "path": "'vrf'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[('vrf.', {'ACME': …, 'GLOBEX': …}, {'ACME': …})]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'vrf'",
+    "path": "'vrf'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[('vrf.', {'ACME': …, 'GLOBEX': …}, {'ACME': …})]",
+    "prefix": "''",
+    "want": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "have": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "key": "'vrf'",
+    "path": "'vrf'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'vrf'",
+    "path": "'vrf'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'GLOBEX'",
+    "path": "'vrf'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'GLOBEX'",
+    "path": "'vrf.GLOBEX'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "[]",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'GLOBEX'",
+    "path": "'vrf.GLOBEX'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'GLOBEX'",
+    "path": "'vrf.GLOBEX'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'ACME'",
+    "path": "'vrf.GLOBEX'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'ACME'",
+    "path": "'vrf.ACME'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'ACME'",
+    "path": "'vrf.ACME'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'ACME'",
+    "path": "'vrf.ACME'",
+    "a": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "b": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'ACME'",
+    "path": "'vrf.ACME'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'ACME'",
+    "path": "'vrf.ACME'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[('vrf.ACME.', {'l3vni': 50001, 'arp-suppress': True}, {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'})]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'ACME'",
+    "path": "'vrf.ACME'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[('vrf.ACME.', {'l3vni': 50001, 'arp-suppress': True}, {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'})]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'ACME'",
+    "path": "'vrf.ACME'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[('vrf.ACME.', {'l3vni': 50001, 'arp-suppress': True}, {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'})]",
+    "prefix": "'vrf.'",
+    "want": "{'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}",
+    "have": "{'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}",
+    "key": "'ACME'",
+    "path": "'vrf.ACME'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'ACME'",
+    "path": "'vrf.ACME'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'rd'",
+    "path": "'vrf.ACME'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'rd'",
+    "path": "'vrf.ACME.rd'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'rd'",
+    "path": "'vrf.ACME.rd'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "[]",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'rd'",
+    "path": "'vrf.ACME.rd'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'rd'",
+    "path": "'vrf.ACME.rd'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'arp-suppress'",
+    "path": "'vrf.ACME.rd'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'arp-suppress'",
+    "path": "'vrf.ACME.arp-suppress'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'arp-suppress'",
+    "path": "'vrf.ACME.arp-suppress'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'arp-suppress'",
+    "path": "'vrf.ACME.arp-suppress'",
+    "a": "{'l3vni': 50001, 'arp-suppress': True}",
+    "b": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'arp-suppress'",
+    "path": "'vrf.ACME.arp-suppress'",
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'arp-suppress'",
+    "path": "'vrf.ACME.arp-suppress'",
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "True",
+    "b": "1"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 27,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'arp-suppress'",
+    "path": "'vrf.ACME.arp-suppress'",
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'arp-suppress'",
+    "path": "'vrf.ACME.arp-suppress'",
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.arp-suppress'",
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.l3vni'",
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.l3vni'",
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.l3vni'",
+    "a": "True",
+    "b": "1"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.l3vni'",
+    "a": "50001",
+    "b": "50001"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.l3vni'",
+    "a": "50001",
+    "b": "50001"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "50001",
+    "b": "50001"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "50001",
+    "b": "50001"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "50001",
+    "b": "50001"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "50001",
+    "b": "50001"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "config_drift",
+    "_same"
+   ],
+   "vars": {
+    "a": "50001",
+    "b": "50001"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.l3vni'",
+    "a": "50001",
+    "b": "50001"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.l3vni'",
+    "a": "50001",
+    "b": "50001"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.l3vni'",
+    "a": "50001",
+    "b": "50001"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "config_drift"
+   ],
+   "vars": {
+    "intended": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': True}, 'GLOBEX': {'l3vni': 50002}}, 'evpn': {'enable': True}}",
+    "running": "{'vrf': {'ACME': {'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}}, 'evpn': True}",
+    "added": "['vrf.ACME.rd']",
+    "removed": "['vrf.GLOBEX']",
+    "changed": "['evpn', 'vrf.ACME.arp-suppress']",
+    "stack": "[]",
+    "prefix": "'vrf.ACME.'",
+    "want": "{'l3vni': 50001, 'arp-suppress': True}",
+    "have": "{'l3vni': 50001, 'arp-suppress': 1, 'rd': '10.255.1.11:50001'}",
+    "key": "'l3vni'",
+    "path": "'vrf.ACME.l3vni'",
+    "a": "50001",
+    "b": "50001"
+   },
+   "ret": "{'added': ['vrf.ACME.rd'], 'removed': ['vrf.GLOBEX'], 'changed': ['evpn', 'vrf.ACME.arp-suppress']}"
+  }
+ ]
+}

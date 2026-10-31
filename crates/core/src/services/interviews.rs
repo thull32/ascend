@@ -17,6 +17,7 @@ pub enum InterviewKind {
     Coding,
     SystemDesign,
     Behavioral,
+    Networking,
 }
 
 impl InterviewKind {
@@ -25,6 +26,7 @@ impl InterviewKind {
             Self::Coding => "coding",
             Self::SystemDesign => "system_design",
             Self::Behavioral => "behavioral",
+            Self::Networking => "networking",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -32,6 +34,7 @@ impl InterviewKind {
             "coding" => Some(Self::Coding),
             "system_design" => Some(Self::SystemDesign),
             "behavioral" => Some(Self::Behavioral),
+            "networking" => Some(Self::Networking),
             _ => None,
         }
     }
@@ -139,6 +142,77 @@ pub const BEHAVIORAL_PROMPTS: &[&str] = &[
     "What is a technical bet you made that turned out wrong? What did you learn?",
 ];
 
+/// Networking-panel prompts: the opening questions a principal network
+/// engineer asks a software engineer interviewing for a network or
+/// AI-infrastructure organisation. Each is set on a generic fabric and is
+/// only the start: the interviewer goes one level deeper on every answer.
+pub const NETWORKING_PROMPTS: &[(&str, &str)] = &[
+    (
+        "laptop-joins-wifi",
+        "A brand-new laptop joins an office Wi-Fi network, and the user types https://www.example.com into the browser. Walk me through everything that happens, from the radio association to the rendered page. Name the layer at each step, and tell me where each step can break.",
+    ),
+    (
+        "packet-across-the-fabric",
+        "Two servers sit in different racks of a data-center fabric. Each rack has a top-of-rack (leaf) switch, every leaf connects to four spine switches, and tenant traffic is carried in a VXLAN overlay. Server A opens a TCP connection to server B. Follow one packet from A's NIC to B's NIC: what each device looks at, what it rewrites, and what the header stack looks like on each link.",
+    ),
+    (
+        "bgp-session-stuck",
+        "A new eBGP session between your border router and an upstream provider will not come up. Your side shows the neighbour cycling between Connect and Active; the provider says theirs is Idle. Walk me through the BGP state machine, what each of those states means is happening on the wire, and how you would find the cause.",
+    ),
+    (
+        "bgp-best-path",
+        "Your border router learns the same prefix, 203.0.113.0/24, from three neighbours: two different transit providers over eBGP and an internal router over iBGP. With no multipath configured, exactly one path ends up in the forwarding table. Walk me through how BGP picks it: which attributes it compares, in what order, and which of them you control versus your neighbours.",
+    ),
+    (
+        "route-reflectors",
+        "Your network runs iBGP across 200 routers inside one autonomous system. Explain why iBGP needs a full mesh in the first place, how route reflectors remove that requirement, and what changes when you introduce them (path visibility, loop prevention, failure behaviour). Then both route reflectors serving a site fail at the same moment: what happens to traffic, and what would you alarm on?",
+    ),
+    (
+        "bgp-black-hole",
+        "After maintenance, a core router in your backbone is reloaded. The core forwards plain IP hop by hop (no MPLS). Its IS-IS adjacencies come back within seconds and transit traffic shifts back onto it, but its BGP sessions take several minutes to relearn the full internet table. During those minutes, traffic to some external prefixes is dropped, even though every other router has a valid BGP route for them. Explain the black hole: which packets are dropped and where, why the IGP and BGP converge at such different speeds, and what mechanism or order of operations avoids it.",
+    ),
+    (
+        "two-isp-traffic-engineering",
+        "Your company's data center has one public /24 and two internet providers, ISP1 and ISP2. The business wants traffic to use ISP1 in both directions and to fail over to ISP2 only when ISP1 is down. How do you make that happen for outbound traffic, and how do you influence inbound traffic, given you do not control how the rest of the internet routes to you? Cover each knob and its limits.",
+    ),
+    (
+        "leaf-spine-design",
+        "You are building a new data-center fabric for about 6,000 servers, each with two 100G uplinks, carrying heavy east-west traffic between services. Design the physical topology: why leaf-spine rather than the classic core/aggregation/access tree, how many spines, what oversubscription ratio, how traffic spreads across the spines, and what happens to capacity when one spine or one link fails.",
+    ),
+    (
+        "underlay-isis-vs-ebgp",
+        "For the routing underlay of a large fabric, one camp wants IS-IS, a link-state IGP, on every link; the other wants eBGP everywhere with a private ASN per switch. Explain how each one learns the topology and converges after a link failure, and when you would pick one over the other, including for a backbone that connects many metro sites rather than a single data center.",
+    ),
+    (
+        "vxlan-evpn-overlay",
+        "Tenants on your fabric need their own layer-2 segments and their own IP space stretched across many racks, while the fabric itself is routed at layer 3. Explain how VXLAN encapsulation and an EVPN control plane solve this together: what a VTEP and a VNI are, how a leaf learns where a remote MAC address lives, what happens to broadcast and ARP traffic, and how this compares with MPLS for the same job.",
+    ),
+    (
+        "server-cannot-ping-gateway",
+        "A freshly racked server cannot ping its default gateway, which lives on the leaf switch it is cabled to. Every other server in the rack works. Walk me through how you would find the cause, from the server outward, and name the layer you are testing at each step.",
+    ),
+    (
+        "isis-adjacency-down",
+        "An alert fires: the IS-IS adjacency between a leaf and a spine went down and stayed down, yet the link itself shows as up. What do you check, and in what order? What are the classic causes, and how does your thinking change if every adjacency on that switch dropped at once rather than just this one?",
+    ),
+    (
+        "fabric-latency-regression",
+        "A customer reports that latency between two of their sites, connected across your overlay fabric, went from about 10 ms to 50 ms. The fabric has tens of thousands of links and nothing is alarming. What data do you collect, and how do you narrow the problem to one device or link without inspecting every one?",
+    ),
+    (
+        "telemetry-dead-or-congested",
+        "Streaming telemetry from one switch stopped reaching your collectors five minutes ago. Is the switch dead, is the path between it and the collectors congested, or did the telemetry pipeline itself break? Design how your monitoring system tells these apart, quickly and automatically, and where each piece of it should run.",
+    ),
+    (
+        "silent-packet-drops",
+        "Applications behind one part of the fabric see occasional TCP retransmits and slow requests, but no link is down and no alarm has fired. You suspect a device is silently dropping packets. What signals would show it, how do you find which device it is, and what would you build so this is caught automatically next time?",
+    ),
+    (
+        "roce-congestion-control",
+        "You run the network for a GPU cluster whose training jobs use RDMA over Converged Ethernet (RoCEv2). Training throughput drops whenever several jobs run their all-reduce phase at the same time. Explain why RoCE wants a lossless fabric, how PFC, ECN and DCQCN work together, how each of them can fail, and what you would monitor.",
+    ),
+];
+
 impl InterviewService {
     pub fn new(db: DatabaseConnection, curriculum: Arc<Curriculum>) -> Self {
         Self { db, curriculum }
@@ -151,6 +225,7 @@ impl InterviewService {
             InterviewKind::Coding => 45,
             InterviewKind::SystemDesign => 45,
             InterviewKind::Behavioral => 30,
+            InterviewKind::Networking => 45,
         });
         if !(10..=90).contains(&duration) {
             return Err(AppError::validation("duration must be 10–90 minutes"));
@@ -170,6 +245,10 @@ impl InterviewService {
             }
             InterviewKind::Behavioral => {
                 (None, BEHAVIORAL_PROMPTS[pseudo_random(BEHAVIORAL_PROMPTS.len())].to_string())
+            }
+            InterviewKind::Networking => {
+                let idx = pseudo_random(NETWORKING_PROMPTS.len());
+                (Some(NETWORKING_PROMPTS[idx].0.to_string()), NETWORKING_PROMPTS[idx].1.to_string())
             }
         };
 
@@ -409,4 +488,54 @@ impl InterviewService {
 fn pseudo_random(n: usize) -> usize {
     use rand::RngExt;
     if n == 0 { 0 } else { rand::rng().random_range(0..n) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ALL: [InterviewKind; 4] =
+        [InterviewKind::Coding, InterviewKind::SystemDesign, InterviewKind::Behavioral, InterviewKind::Networking];
+
+    #[test]
+    fn every_kind_round_trips_through_its_wire_name() {
+        for kind in ALL {
+            assert_eq!(InterviewKind::parse(kind.as_str()), Some(kind));
+            let json = serde_json::to_string(&kind).unwrap();
+            assert_eq!(json, format!("\"{}\"", kind.as_str()), "serde and as_str agree");
+            assert_eq!(serde_json::from_str::<InterviewKind>(&json).unwrap(), kind);
+        }
+        assert_eq!(InterviewKind::parse("networking"), Some(InterviewKind::Networking));
+        assert_eq!(InterviewKind::parse("network"), None);
+        // The column is varchar(24) (m0005).
+        assert!(ALL.iter().all(|k| k.as_str().len() <= 24));
+    }
+
+    #[test]
+    fn the_networking_bank_is_large_unique_and_generic() {
+        let n = NETWORKING_PROMPTS.len();
+        assert!((12..=16).contains(&n), "{n} prompts");
+        let ids: std::collections::HashSet<_> = NETWORKING_PROMPTS.iter().map(|(id, _)| *id).collect();
+        assert_eq!(ids.len(), n, "prompt ids are unique");
+        for (id, text) in NETWORKING_PROMPTS {
+            assert!(!id.is_empty() && id.chars().all(|c| c.is_ascii_lowercase() || c == '-'), "{id}");
+            assert!(text.len() > 150, "{id}: an opening question needs its setup");
+        }
+        let all = NETWORKING_PROMPTS.iter().map(|(_, t)| t.to_lowercase()).collect::<Vec<_>>().join(" ");
+        for topic in [
+            "bgp",
+            "route reflector",
+            "is-is",
+            "vxlan",
+            "evpn",
+            "leaf",
+            "rdma",
+            "pfc",
+            "ecn",
+            "telemetry",
+            "two internet providers",
+        ] {
+            assert!(all.contains(topic), "the bank covers {topic}");
+        }
+    }
 }

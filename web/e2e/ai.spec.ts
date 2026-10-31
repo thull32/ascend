@@ -80,6 +80,28 @@ test("assisted system design interview: assistant panel works and is graded", as
   await expect(page.getByTestId("evaluation")).toContainText(/AI direction|verification/i);
 });
 
+test("solo networking interview: the network panel probes and grades on its own rubric", async ({ page }) => {
+  await register(page);
+  await page.goto("/interviews");
+  await page.getByTestId("kind-networking").click();
+  await page.getByTestId("mode-solo").click();
+  await page.getByTestId("start-interview").click();
+  await expect(page).toHaveURL(/\/interviews\/[0-9a-f-]+$/);
+  await expect(page.getByText("networking interview", { exact: false }).first()).toBeVisible();
+  const transcript = page.getByTestId("interview-transcript");
+  await expect(transcript.getByText("Interviewer", { exact: true }).first()).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole("button", { name: "Stop generating" })).toHaveCount(0, { timeout: 120_000 });
+  // No editor for a networking round: the conversation is the whole interview.
+  await expect(page.getByRole("button", { name: "Ask the coach" })).toHaveCount(0);
+  await page.getByTestId("interview-input").fill("I'd start at layer 3: check whether there is a route at all, then whether the control plane (BGP or IS-IS) agrees with what the forwarding table actually has.");
+  await page.getByTestId("interview-input").press("Enter");
+  await expect(transcript.getByText("Interviewer", { exact: true })).toHaveCount(2, { timeout: 120_000 });
+  await expect(page.getByRole("button", { name: "Stop generating" })).toHaveCount(0, { timeout: 120_000 });
+  await page.getByTestId("finish-interview").click();
+  await expect(page.getByTestId("evaluation")).toBeVisible({ timeout: 180_000 });
+  await expect(page.getByTestId("evaluation")).toContainText(/Protocol mechanism|Layered reasoning|Failure modes/i);
+});
+
 test("roadmap personaliser suggests changes that apply only after review", async ({ page }) => {
   await register(page);
   await page.goto("/roadmap");

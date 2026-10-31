@@ -44,6 +44,7 @@ export default function Practice() {
         <Chip active={!list} onClick={() => set("list")} label="All" />
         <Chip active={list === "core-75"} onClick={() => set("list", "core-75")} label={collectionLabel("Core practice", "core-75")} />
         <Chip active={list === "ascend-150"} onClick={() => set("list", "ascend-150")} label={collectionLabel("Full practice", "ascend-150")} />
+        <Chip active={list === "network-practice"} onClick={() => set("list", "network-practice")} label={collectionLabel("Network practice", "network-practice")} />
         <span className="mx-1 border-l border-line" />
         {["easy", "medium", "hard"].map((d) => (
           <Chip key={d} active={difficulty === d} onClick={() => set("difficulty", difficulty === d ? undefined : d)} label={titleCase(d)} />

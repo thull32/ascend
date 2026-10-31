@@ -46,6 +46,8 @@ test.describe("public pages", () => {
     const coreButton = page.getByRole("button", { name: `Core practice (${core.length})`, exact: true });
     await expect(coreButton).toBeVisible();
     await expect(page.getByRole("button", { name: `Full practice (${full.length})`, exact: true })).toBeVisible();
+    const network = problems.filter((p) => p.lists.includes("network-practice"));
+    await expect(page.getByRole("button", { name: `Network practice (${network.length})`, exact: true })).toBeVisible();
     await expect(page.getByTestId("problem-row")).toHaveCount(core.length);
     await page.getByRole("button", { name: "Medium", exact: true }).click();
     await expect(page.getByTestId("problem-row")).toHaveCount(core.filter((p) => p.difficulty === "medium").length);

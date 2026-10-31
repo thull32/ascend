@@ -1,0 +1,1006 @@
+{
+ "problem": "top-k-flows",
+ "block": 1,
+ "version": 2,
+ "source": "e4387f91f398b79c",
+ "code": "import heapq\n\n\nclass _Flow:\n    \"\"\"A flow in the heap. `a < b` means \"a is worse than b\", so the heap's\n    root is the weakest flow still in the top k.\"\"\"\n    __slots__ = (\"total\", \"src\", \"dst\")\n\n    def __init__(self, total: int, src: str, dst: str):\n        self.total, self.src, self.dst = total, src, dst\n\n    def __lt__(self, other: \"_Flow\") -> bool:\n        if self.total != other.total:\n            return self.total < other.total               # fewer bytes is worse\n        return (self.src, self.dst) > (other.src, other.dst)  # larger key loses a tie\n\n\ndef top_k_flows(records: list[list], k: int) -> list[list]:\n    if k <= 0:\n        return []\n    totals: dict[tuple[str, str], int] = {}\n    for src, dst, nbytes in records:\n        totals[(src, dst)] = totals.get((src, dst), 0) + nbytes\n\n    heap: list[_Flow] = []\n    for (src, dst), total in totals.items():\n        flow = _Flow(total, src, dst)\n        if len(heap) < k:\n            heapq.heappush(heap, flow)\n        elif heap[0] < flow:                  # beats the weakest of the best k\n            heapq.heapreplace(heap, flow)\n\n    ranked = []\n    while heap:\n        f = heapq.heappop(heap)               # worst first\n        ranked.append([f.src, f.dst, f.total])\n    ranked.reverse()                          # heaviest first\n    return ranked\n",
+ "args": [
+  [
+   [
+    "web",
+    "db",
+    300
+   ],
+   [
+    "app",
+    "cache",
+    500
+   ],
+   [
+    "web",
+    "db",
+    400
+   ],
+   [
+    "db",
+    "web",
+    100
+   ],
+   [
+    "app",
+    "dns",
+    700
+   ]
+  ],
+  2
+ ],
+ "result": "[[\"app\", \"dns\", 700], [\"web\", \"db\", 700]]",
+ "frames": [
+  {
+   "line": 19,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{}",
+    "src": "'web'",
+    "dst": "'db'",
+    "nbytes": "300"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 300}",
+    "src": "'web'",
+    "dst": "'db'",
+    "nbytes": "300"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 300}",
+    "src": "'app'",
+    "dst": "'cache'",
+    "nbytes": "500"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 300, ('app', 'cache'): 500}",
+    "src": "'app'",
+    "dst": "'cache'",
+    "nbytes": "500"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 300, ('app', 'cache'): 500}",
+    "src": "'web'",
+    "dst": "'db'",
+    "nbytes": "400"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500}",
+    "src": "'web'",
+    "dst": "'db'",
+    "nbytes": "400"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500}",
+    "src": "'db'",
+    "dst": "'web'",
+    "nbytes": "100"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100}",
+    "src": "'db'",
+    "dst": "'web'",
+    "nbytes": "100"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[]"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'web'",
+    "dst": "'db'",
+    "nbytes": "700",
+    "heap": "[]",
+    "total": "700"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "top_k_flows",
+    "__init__"
+   ],
+   "vars": {
+    "total": "700",
+    "src": "'web'",
+    "dst": "'db'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "top_k_flows",
+    "__init__"
+   ],
+   "vars": {
+    "self.total": "700",
+    "self.src": "'web'",
+    "self.dst": "'db'",
+    "total": "700",
+    "src": "'web'",
+    "dst": "'db'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 28,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'web'",
+    "dst": "'db'",
+    "nbytes": "700",
+    "heap": "[]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'web'",
+    "dst": "'db'",
+    "nbytes": "700",
+    "heap": "[]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'web'",
+    "dst": "'db'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='web', dst='db')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'cache'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='web', dst='db')]",
+    "total": "500",
+    "flow": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "top_k_flows",
+    "__init__"
+   ],
+   "vars": {
+    "total": "500",
+    "src": "'app'",
+    "dst": "'cache'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "top_k_flows",
+    "__init__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "total": "500",
+    "src": "'app'",
+    "dst": "'cache'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 28,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'cache'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='web', dst='db')]",
+    "total": "500",
+    "flow": "_Flow(total=500, src='app', dst='cache')"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'cache'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='web', dst='db')]",
+    "total": "500",
+    "flow": "_Flow(total=500, src='app', dst='cache')"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "other": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "other": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "other": "_Flow(total=700, src='web', dst='db')"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'cache'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=500, src='app', dst='cache'), _Flow(total=700, src='web', dst='db')]",
+    "total": "500",
+    "flow": "_Flow(total=500, src='app', dst='cache')"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'db'",
+    "dst": "'web'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=500, src='app', dst='cache'), _Flow(total=700, src='web', dst='db')]",
+    "total": "100",
+    "flow": "_Flow(total=500, src='app', dst='cache')"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "top_k_flows",
+    "__init__"
+   ],
+   "vars": {
+    "total": "100",
+    "src": "'db'",
+    "dst": "'web'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "top_k_flows",
+    "__init__"
+   ],
+   "vars": {
+    "self.total": "100",
+    "self.src": "'db'",
+    "self.dst": "'web'",
+    "total": "100",
+    "src": "'db'",
+    "dst": "'web'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 28,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'db'",
+    "dst": "'web'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=500, src='app', dst='cache'), _Flow(total=700, src='web', dst='db')]",
+    "total": "100",
+    "flow": "_Flow(total=100, src='db', dst='web')"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'db'",
+    "dst": "'web'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=500, src='app', dst='cache'), _Flow(total=700, src='web', dst='db')]",
+    "total": "100",
+    "flow": "_Flow(total=100, src='db', dst='web')"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "other": "_Flow(total=100, src='db', dst='web')"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "other": "_Flow(total=100, src='db', dst='web')"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "other": "_Flow(total=100, src='db', dst='web')"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'db'",
+    "dst": "'web'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=500, src='app', dst='cache'), _Flow(total=700, src='web', dst='db')]",
+    "total": "100",
+    "flow": "_Flow(total=100, src='db', dst='web')"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=500, src='app', dst='cache'), _Flow(total=700, src='web', dst='db')]",
+    "total": "700",
+    "flow": "_Flow(total=100, src='db', dst='web')"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "top_k_flows",
+    "__init__"
+   ],
+   "vars": {
+    "total": "700",
+    "src": "'app'",
+    "dst": "'dns'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "top_k_flows",
+    "__init__"
+   ],
+   "vars": {
+    "self.total": "700",
+    "self.src": "'app'",
+    "self.dst": "'dns'",
+    "total": "700",
+    "src": "'app'",
+    "dst": "'dns'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 28,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=500, src='app', dst='cache'), _Flow(total=700, src='web', dst='db')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=500, src='app', dst='cache'), _Flow(total=700, src='web', dst='db')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "other": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "other": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "500",
+    "self.src": "'app'",
+    "self.dst": "'cache'",
+    "other": "_Flow(total=700, src='app', dst='dns')"
+   },
+   "ret": "True"
+  },
+  {
+   "line": 31,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=500, src='app', dst='cache'), _Flow(total=700, src='web', dst='db')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "700",
+    "self.src": "'app'",
+    "self.dst": "'dns'",
+    "other": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "700",
+    "self.src": "'app'",
+    "self.dst": "'dns'",
+    "other": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "top_k_flows",
+    "__lt__"
+   ],
+   "vars": {
+    "self.total": "700",
+    "self.src": "'app'",
+    "self.dst": "'dns'",
+    "other": "_Flow(total=700, src='web', dst='db')"
+   },
+   "ret": "False"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='web', dst='db'), _Flow(total=700, src='app', dst='dns')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='web', dst='db'), _Flow(total=700, src='app', dst='dns')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='web', dst='db'), _Flow(total=700, src='app', dst='dns')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[]"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='web', dst='db'), _Flow(total=700, src='app', dst='dns')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[]"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='app', dst='dns')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[]",
+    "f": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='app', dst='dns')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[['web', 'db', 700]]",
+    "f": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[_Flow(total=700, src='app', dst='dns')]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[['web', 'db', 700]]",
+    "f": "_Flow(total=700, src='web', dst='db')"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[['web', 'db', 700]]",
+    "f": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[['web', 'db', 700], ['app', 'dns', 700]]",
+    "f": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 37,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[['web', 'db', 700], ['app', 'dns', 700]]",
+    "f": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 38,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[['app', 'dns', 700], ['web', 'db', 700]]",
+    "f": "_Flow(total=700, src='app', dst='dns')"
+   }
+  },
+  {
+   "line": 38,
+   "stack": [
+    "top_k_flows"
+   ],
+   "vars": {
+    "records": "[['web', 'db', 300], ['app', 'cache', 500], ['web', 'db', 400], ['db', 'web', 100], ['app', 'dns', 700]]",
+    "k": "2",
+    "totals": "{('web', 'db'): 700, ('app', 'cache'): 500, ('db', 'web'): 100, ('app', 'dns'): 700}",
+    "src": "'app'",
+    "dst": "'dns'",
+    "nbytes": "700",
+    "heap": "[]",
+    "total": "700",
+    "flow": "_Flow(total=700, src='app', dst='dns')",
+    "ranked": "[['app', 'dns', 700], ['web', 'db', 700]]",
+    "f": "_Flow(total=700, src='app', dst='dns')"
+   },
+   "ret": "[['app', 'dns', 700], ['web', 'db', 700]]"
+  }
+ ]
+}

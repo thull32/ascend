@@ -1,0 +1,1334 @@
+{
+ "problem": "routing-loop-detect",
+ "block": 1,
+ "version": 2,
+ "source": "56299e48c8616c68",
+ "code": "def routing_loop_detect(destination: str, next_hops: list[list[str | None]]) -> dict[str, list]:\n    nxt = {router: hop for router, hop in next_hops}\n    routers = set(nxt) | {hop for hop in nxt.values() if hop is not None}\n    routers.discard(destination)\n\n    outcome = {destination: \"delivered\"}         # the destination never forwards\n    cycles = []\n    for start in sorted(routers):\n        path, pos = [], {}                        # the current walk, and each router's index on it\n        node = start\n        while node is not None and node not in outcome and node not in pos:\n            pos[node] = len(path)\n            path.append(node)\n            node = nxt.get(node)                  # None: no entry, or an entry with no route\n        if node is None:\n            result = \"black_hole\"\n        elif node in pos:                         # back on our own walk: a new cycle\n            cycle = path[pos[node]:]\n            k = cycle.index(min(cycle))\n            cycles.append(cycle[k:] + cycle[:k])\n            result = \"loop\"\n        else:\n            result = outcome[node]                # inherit a fate found earlier\n        for r in path:\n            outcome[r] = result\n\n    return {\n        \"cycles\": sorted(cycles),\n        \"looping\": sorted(r for r in routers if outcome[r] == \"loop\"),\n        \"black_holed\": sorted(r for r in routers if outcome[r] == \"black_hole\"),\n    }\n",
+ "args": [
+  "gw1",
+  [
+   [
+    "leaf1",
+    "spine1"
+   ],
+   [
+    "spine1",
+    "leaf2"
+   ],
+   [
+    "leaf2",
+    "spine1"
+   ]
+  ]
+ ],
+ "result": "{\"cycles\": [[\"leaf2\", \"spine1\"]], \"looping\": [\"leaf1\", \"leaf2\", \"spine1\"], \"black_holed\": []}",
+ "frames": [
+  {
+   "line": 2,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "router": "'leaf1'",
+    "hop": "'spine1'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "router": "'spine1'",
+    "hop": "'leaf2'"
+   }
+  },
+  {
+   "line": 2,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "router": "'leaf2'",
+    "hop": "'spine1'"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "hop": "'spine1'",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "hop": "'leaf2'",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}"
+   }
+  },
+  {
+   "line": 3,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "hop": "'spine1'",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}"
+   }
+  },
+  {
+   "line": 4,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}"
+   }
+  },
+  {
+   "line": 7,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "[]",
+    "pos": "{}",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "[]",
+    "pos": "{'leaf1': 0}",
+    "node": "'leaf1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1']",
+    "pos": "{'leaf1': 0}",
+    "node": "'leaf1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1']",
+    "pos": "{'leaf1': 0}",
+    "node": "'spine1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1']",
+    "pos": "{'leaf1': 0}",
+    "node": "'spine1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1']",
+    "pos": "{'leaf1': 0, 'spine1': 1}",
+    "node": "'spine1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1']",
+    "pos": "{'leaf1': 0, 'spine1': 1}",
+    "node": "'spine1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1']",
+    "pos": "{'leaf1': 0, 'spine1': 1}",
+    "node": "'leaf2'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 12,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1']",
+    "pos": "{'leaf1': 0, 'spine1': 1}",
+    "node": "'leaf2'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 13,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'leaf2'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 14,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'leaf2'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 19,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "cycle": "['spine1', 'leaf2']",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf1'",
+    "outcome": "{'gw1': 'delivered'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'spine1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'spine1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop'}"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf1'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf2'",
+    "path": "['leaf1', 'spine1', 'leaf2']",
+    "pos": "{'leaf1': 0, 'spine1': 1, 'leaf2': 2}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf2'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf2'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf2'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf2'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf2'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf2'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf2'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf2'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf2'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf2'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf2'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'leaf2'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf2'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 9,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf2'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'leaf2'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 24,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 8,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'spine1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   },
+   "ret": "'spine1'"
+  },
+  {
+   "line": 29,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'spine1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   },
+   "ret": "'leaf2'"
+  },
+  {
+   "line": 29,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'leaf1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   },
+   "ret": "'leaf1'"
+  },
+  {
+   "line": 29,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'leaf1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'leaf1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 30,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'spine1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'leaf1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 30,
+   "stack": [
+    "routing_loop_detect",
+    "<genexpr>"
+   ],
+   "vars": {
+    "r": "'leaf1'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 27,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "routing_loop_detect"
+   ],
+   "vars": {
+    "destination": "'gw1'",
+    "next_hops": "[['leaf1', 'spine1'], ['spine1', 'leaf2'], ['leaf2', 'spine1']]",
+    "nxt": "{'leaf1': 'spine1', 'spine1': 'leaf2', 'leaf2': 'spine1'}",
+    "routers": "{'leaf1', 'leaf2', 'spine1'}",
+    "cycles": "[['leaf2', 'spine1']]",
+    "start": "'spine1'",
+    "path": "[]",
+    "pos": "{}",
+    "node": "'spine1'",
+    "result": "'loop'",
+    "cycle": "['spine1', 'leaf2']",
+    "k": "1",
+    "r": "'leaf2'",
+    "outcome": "{'gw1': 'delivered', 'leaf1': 'loop', 'spine1': 'loop', 'leaf2': 'loop'}"
+   },
+   "ret": "{'cycles': [['leaf2', 'spine1']], 'looping': ['leaf1', 'leaf2', 'spine1'], 'black_holed': []}"
+  }
+ ]
+}

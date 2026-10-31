@@ -1,0 +1,1438 @@
+{
+ "problem": "longest-prefix-match",
+ "block": 1,
+ "version": 2,
+ "source": "7d30b33304184a28",
+ "code": "class _Node:\n    __slots__ = (\"child\", \"next_hop\")\n\n    def __init__(self):\n        self.child = [None, None]\n        self.next_hop = None\n\n\ndef _to_int(addr: str) -> int:\n    a, b, c, d = (int(part) for part in addr.split(\".\"))\n    return (a << 24) | (b << 16) | (c << 8) | d\n\n\ndef longest_prefix_match(routes: list[list[str]], destinations: list[str]) -> list[str | None]:\n    root = _Node()\n    for prefix, next_hop in routes:\n        addr, length = prefix.split(\"/\")\n        value, length = _to_int(addr), int(length)\n        node = root\n        for i in range(length):                      # only the first L bits matter\n            bit = (value >> (31 - i)) & 1\n            if node.child[bit] is None:\n                node.child[bit] = _Node()\n            node = node.child[bit]\n        node.next_hop = next_hop                     # a repeated prefix overwrites\n\n    answers = []\n    for dst in destinations:\n        value, node = _to_int(dst), root\n        best = root.next_hop                         # the /0 default route, if any\n        for i in range(32):\n            node = node.child[(value >> (31 - i)) & 1]\n            if node is None:\n                break                                # fell off the trie\n            if node.next_hop is not None:\n                best = node.next_hop                 # a longer match than any before\n        answers.append(best)\n    return answers\n",
+ "args": [
+  [
+   [
+    "0.0.0.0/0",
+    "gw1.ams"
+   ],
+   [
+    "192.0.0.0/2",
+    "gw2.ams"
+   ]
+  ],
+  [
+   "203.0.113.9"
+  ]
+ ],
+ "result": "[\"gw2.ams\"]",
+ "frames": [
+  {
+   "line": 15,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "longest_prefix_match",
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_prefix_match",
+    "__init__"
+   ],
+   "vars": {
+    "self.child": "[None, None]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_prefix_match",
+    "__init__"
+   ],
+   "vars": {
+    "self.child": "[None, None]",
+    "self.next_hop": "None"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop=None)"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop=None)",
+    "prefix": "'0.0.0.0/0'",
+    "next_hop": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop=None)",
+    "prefix": "'0.0.0.0/0'",
+    "next_hop": "'gw1.ams'",
+    "addr": "'0.0.0.0'",
+    "length": "'0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'0.0.0.0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'0.0.0.0'",
+    "a": "0",
+    "b": "0",
+    "c": "0",
+    "d": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'0.0.0.0'",
+    "a": "0",
+    "b": "0",
+    "c": "0",
+    "d": "0"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop=None)",
+    "prefix": "'0.0.0.0/0'",
+    "next_hop": "'gw1.ams'",
+    "addr": "'0.0.0.0'",
+    "length": "0",
+    "value": "0"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop=None)",
+    "prefix": "'0.0.0.0/0'",
+    "next_hop": "'gw1.ams'",
+    "addr": "'0.0.0.0'",
+    "length": "0",
+    "value": "0",
+    "node": "_Node(child=[None, None], next_hop=None)"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop=None)",
+    "prefix": "'0.0.0.0/0'",
+    "next_hop": "'gw1.ams'",
+    "addr": "'0.0.0.0'",
+    "length": "0",
+    "value": "0",
+    "node": "_Node(child=[None, None], next_hop=None)"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "prefix": "'0.0.0.0/0'",
+    "next_hop": "'gw1.ams'",
+    "addr": "'0.0.0.0'",
+    "length": "0",
+    "value": "0",
+    "node": "_Node(child=[None, None], next_hop='gw1.ams')"
+   }
+  },
+  {
+   "line": 17,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'0.0.0.0'",
+    "length": "0",
+    "value": "0",
+    "node": "_Node(child=[None, None], next_hop='gw1.ams')"
+   }
+  },
+  {
+   "line": 18,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "'2'",
+    "value": "0",
+    "node": "_Node(child=[None, None], next_hop='gw1.ams')"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'192.0.0.0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'192'"
+   },
+   "ret": "192"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'192'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'192.0.0.0'",
+    "a": "192",
+    "b": "0",
+    "c": "0",
+    "d": "0"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'192.0.0.0'",
+    "a": "192",
+    "b": "0",
+    "c": "0",
+    "d": "0"
+   },
+   "ret": "3221225472"
+  },
+  {
+   "line": 19,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop='gw1.ams')"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop='gw1.ams')"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "i": "0"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "i": "0",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop='gw1.ams')",
+    "i": "0",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "longest_prefix_match",
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_prefix_match",
+    "__init__"
+   ],
+   "vars": {
+    "self.child": "[None, None]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_prefix_match",
+    "__init__"
+   ],
+   "vars": {
+    "self.child": "[None, None]",
+    "self.next_hop": "None"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 24,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "i": "0",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop=None)",
+    "i": "0",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop=None)",
+    "i": "1",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop=None)",
+    "i": "1",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop=None)",
+    "i": "1",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "longest_prefix_match",
+    "__init__"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_prefix_match",
+    "__init__"
+   ],
+   "vars": {
+    "self.child": "[None, None]"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "longest_prefix_match",
+    "__init__"
+   ],
+   "vars": {
+    "self.child": "[None, None]",
+    "self.next_hop": "None"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 24,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, _Node(next_hop=None)], next_hop=None)",
+    "i": "1",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 20,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop=None)",
+    "i": "1",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 25,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop=None)",
+    "i": "1",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop='gw2.ams')",
+    "i": "1",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop='gw2.ams')",
+    "i": "1",
+    "bit": "1"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop='gw2.ams')",
+    "i": "1",
+    "bit": "1",
+    "answers": "[]"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3221225472",
+    "node": "_Node(child=[None, None], next_hop='gw2.ams')",
+    "i": "1",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'203.0.113.9'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'203'"
+   },
+   "ret": "203"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'203'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'0'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'113'"
+   },
+   "ret": "113"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'113'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'9'"
+   },
+   "ret": "9"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'9'"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'9'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 11,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'203.0.113.9'",
+    "a": "203",
+    "b": "0",
+    "c": "113",
+    "d": "9"
+   }
+  },
+  {
+   "line": 11,
+   "stack": [
+    "longest_prefix_match",
+    "_to_int"
+   ],
+   "vars": {
+    "addr": "'203.0.113.9'",
+    "a": "203",
+    "b": "0",
+    "c": "113",
+    "d": "9"
+   },
+   "ret": "3405803785"
+  },
+  {
+   "line": 30,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "i": "1",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "i": "1",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "i": "0",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, _Node(next_hop='gw2.ams')], next_hop=None)",
+    "i": "0",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, _Node(next_hop='gw2.ams')], next_hop=None)",
+    "i": "0",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, _Node(next_hop='gw2.ams')], next_hop=None)",
+    "i": "0",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, _Node(next_hop='gw2.ams')], next_hop=None)",
+    "i": "1",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, None], next_hop='gw2.ams')",
+    "i": "1",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 35,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, None], next_hop='gw2.ams')",
+    "i": "1",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 36,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, None], next_hop='gw2.ams')",
+    "i": "1",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw1.ams'"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, None], next_hop='gw2.ams')",
+    "i": "1",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw2.ams'"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "_Node(child=[None, None], next_hop='gw2.ams')",
+    "i": "2",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw2.ams'"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "None",
+    "i": "2",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw2.ams'"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "None",
+    "i": "2",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw2.ams'"
+   }
+  },
+  {
+   "line": 37,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "None",
+    "i": "2",
+    "bit": "1",
+    "answers": "[]",
+    "dst": "'203.0.113.9'",
+    "best": "'gw2.ams'"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "None",
+    "i": "2",
+    "bit": "1",
+    "answers": "['gw2.ams']",
+    "dst": "'203.0.113.9'",
+    "best": "'gw2.ams'"
+   }
+  },
+  {
+   "line": 38,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "None",
+    "i": "2",
+    "bit": "1",
+    "answers": "['gw2.ams']",
+    "dst": "'203.0.113.9'",
+    "best": "'gw2.ams'"
+   }
+  },
+  {
+   "line": 38,
+   "stack": [
+    "longest_prefix_match"
+   ],
+   "vars": {
+    "routes": "[['0.0.0.0/0', 'gw1.ams'], ['192.0.0.0/2', 'gw2.ams']]",
+    "destinations": "['203.0.113.9']",
+    "root": "_Node(child=[None, _Node(next_hop=None)], next_hop='gw1.ams')",
+    "prefix": "'192.0.0.0/2'",
+    "next_hop": "'gw2.ams'",
+    "addr": "'192.0.0.0'",
+    "length": "2",
+    "value": "3405803785",
+    "node": "None",
+    "i": "2",
+    "bit": "1",
+    "answers": "['gw2.ams']",
+    "dst": "'203.0.113.9'",
+    "best": "'gw2.ams'"
+   },
+   "ret": "['gw2.ams']"
+  }
+ ]
+}

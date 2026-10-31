@@ -7,7 +7,9 @@ use ascend_core::ai::budget::Reservation;
 use ascend_core::ai::interview;
 use ascend_core::ai::{ChatMessage, Role};
 use ascend_core::entities::interviews::Model;
-use ascend_core::services::interviews::{InterviewService, StartInterview, TranscriptEntry};
+use ascend_core::services::interviews::{
+    BEHAVIORAL_PROMPTS, InterviewService, NETWORKING_PROMPTS, SYSTEM_DESIGN_PROMPTS, StartInterview, TranscriptEntry,
+};
 use axum::extract::{Path, State};
 use axum::middleware;
 use axum::routing::{get, post};
@@ -40,15 +42,17 @@ pub fn router(state: AppState) -> Router<AppState> {
 struct Prompts {
     system_design: Vec<serde_json::Value>,
     behavioral: &'static [&'static str],
+    networking: Vec<serde_json::Value>,
 }
 
 async fn prompts() -> Json<Prompts> {
+    let with_slugs = |bank: &[(&str, &str)]| {
+        bank.iter().map(|(slug, text)| serde_json::json!({ "slug": slug, "prompt": text })).collect()
+    };
     Json(Prompts {
-        system_design: ascend_core::services::interviews::SYSTEM_DESIGN_PROMPTS
-            .iter()
-            .map(|(slug, text)| serde_json::json!({ "slug": slug, "prompt": text }))
-            .collect(),
-        behavioral: ascend_core::services::interviews::BEHAVIORAL_PROMPTS,
+        system_design: with_slugs(SYSTEM_DESIGN_PROMPTS),
+        behavioral: BEHAVIORAL_PROMPTS,
+        networking: with_slugs(NETWORKING_PROMPTS),
     })
 }
 

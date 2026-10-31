@@ -1,0 +1,2460 @@
+{
+ "problem": "bgp-best-path",
+ "block": 1,
+ "version": 2,
+ "source": "212b6b283fa99f1e",
+ "code": "ORIGIN_RANK = {\"IGP\": 0, \"EGP\": 1, \"INCOMPLETE\": 2}\n\n\ndef _router_id(text: str) -> int:\n    a, b, c, d = (int(part) for part in text.split(\".\"))\n    return (a << 24) | (b << 16) | (c << 8) | d\n\n\ndef _med(route: dict) -> int:\n    return 0 if route.get(\"med\") is None else route[\"med\"]   # a missing MED counts as 0\n\n\ndef _keep_lowest(alive: list, key) -> list:\n    \"\"\"One rung of the ladder: keep every (index, route) that ties for the lowest key.\"\"\"\n    best = min(key(route) for _, route in alive)\n    return [(i, route) for i, route in alive if key(route) == best]\n\n\ndef bgp_best_path(routes: list[dict]) -> int:\n    alive = list(enumerate(routes))\n    alive = _keep_lowest(alive, lambda r: -r[\"local_pref\"])           # 1. highest LOCAL_PREF\n    alive = _keep_lowest(alive, lambda r: len(r[\"as_path\"]))          # 2. shortest AS_PATH\n    alive = _keep_lowest(alive, lambda r: ORIGIN_RANK[r[\"origin\"]])   # 3. IGP < EGP < INCOMPLETE\n\n    lowest: dict[int, int] = {}                                       # 4. MED within each neighbour AS,\n    for _, r in alive:                                                #    over the survivors only\n        group = r[\"neighbor_as\"]\n        lowest[group] = min(lowest.get(group, _med(r)), _med(r))\n    alive = [(i, r) for i, r in alive if _med(r) == lowest[r[\"neighbor_as\"]]]\n\n    alive = _keep_lowest(alive, lambda r: 0 if r[\"ebgp\"] else 1)      # 5. eBGP over iBGP\n    alive = _keep_lowest(alive, lambda r: r[\"igp_cost\"])              # 6. lowest IGP cost\n    alive = _keep_lowest(alive, lambda r: _router_id(r[\"router_id\"])) # 7. lowest router ID\n    return alive[0][0]                                                # full tie: lowest index\n",
+ "args": [
+  [
+   {
+    "local_pref": 100,
+    "as_path": [
+     64501,
+     64511
+    ],
+    "origin": "IGP",
+    "med": 100,
+    "neighbor_as": 64501,
+    "ebgp": false,
+    "igp_cost": 10,
+    "router_id": "10.255.1.201"
+   },
+   {
+    "local_pref": 100,
+    "as_path": [
+     64502,
+     64511
+    ],
+    "origin": "IGP",
+    "med": 50,
+    "neighbor_as": 64502,
+    "ebgp": false,
+    "igp_cost": 20,
+    "router_id": "10.255.1.202"
+   },
+   {
+    "local_pref": 100,
+    "as_path": [
+     64501,
+     64511
+    ],
+    "origin": "IGP",
+    "med": 20,
+    "neighbor_as": 64501,
+    "ebgp": false,
+    "igp_cost": 30,
+    "router_id": "10.255.2.201"
+   }
+  ]
+ ],
+ "result": "1",
+ "frames": [
+  {
+   "line": 20,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "-100"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "0",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "-100"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "0",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "-100"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "-100"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "-100"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "-100"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "-100"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "-100"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "-100",
+    "i": "0",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "-100"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "-100",
+    "i": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 21,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "-100"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "-100",
+    "i": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "-100"
+   },
+   "ret": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "0",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "0",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "2"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "2",
+    "i": "0",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "2",
+    "i": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 22,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "2"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "2",
+    "i": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "2"
+   },
+   "ret": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "0",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "0",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "0"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "0",
+    "i": "0",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "0",
+    "i": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 23,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "0"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "0",
+    "i": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "best": "0"
+   },
+   "ret": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+  },
+  {
+   "line": 25,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…"
+   }
+  },
+  {
+   "line": 26,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{}"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{}",
+    "_": "0",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{}",
+    "_": "0",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "100"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "100"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 100}",
+    "_": "0",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 100}",
+    "_": "1",
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 100}",
+    "_": "1",
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}",
+    "group": "64502"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "50"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "50"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 100, 64502: 50}",
+    "_": "1",
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}",
+    "group": "64502"
+   }
+  },
+  {
+   "line": 27,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 100, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64502"
+   }
+  },
+  {
+   "line": 28,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 100, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "20"
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "20"
+  },
+  {
+   "line": 26,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 29,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}"
+   },
+   "ret": "100"
+  },
+  {
+   "line": 29,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}",
+    "group": "64501",
+    "i": "0"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "50"
+  },
+  {
+   "line": 29,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}",
+    "group": "64501",
+    "i": "1"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 10,
+   "stack": [
+    "bgp_best_path",
+    "_med"
+   ],
+   "vars": {
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "20"
+  },
+  {
+   "line": 29,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(0, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'}), (1, {'l…",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64501",
+    "i": "2"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 31,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "best": "1"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "best": "1",
+    "i": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 31,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "best": "1",
+    "i": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "best": "1"
+   },
+   "ret": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…"
+  },
+  {
+   "line": 32,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 32,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "20"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "20"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "30"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "30"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "best": "20"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "20"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "best": "20",
+    "i": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 32,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   },
+   "ret": "30"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "best": "20",
+    "i": "2",
+    "route": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}), (2, {'lo…",
+    "best": "20"
+   },
+   "ret": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'})]"
+  },
+  {
+   "line": 33,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'})]",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'})]"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 33,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id"
+   ],
+   "vars": {
+    "text": "'10.255.1.202'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   },
+   "ret": "10"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'255'"
+   },
+   "ret": "255"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'255'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'1'"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'1'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'202'"
+   },
+   "ret": "202"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'202'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'202'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id"
+   ],
+   "vars": {
+    "text": "'10.255.1.202'",
+    "a": "10",
+    "b": "255",
+    "c": "1",
+    "d": "202"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>",
+    "_router_id"
+   ],
+   "vars": {
+    "text": "'10.255.1.202'",
+    "a": "10",
+    "b": "255",
+    "c": "1",
+    "d": "202"
+   },
+   "ret": "184484298"
+  },
+  {
+   "line": 33,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "184484298"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "184484298"
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 15,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<genexpr>"
+   ],
+   "vars": {
+    "_": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'})]",
+    "best": "184484298"
+   }
+  },
+  {
+   "line": 33,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id"
+   ],
+   "vars": {
+    "text": "'10.255.1.202'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {}
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   },
+   "ret": "10"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'10'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'255'"
+   },
+   "ret": "255"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'255'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'1'"
+   },
+   "ret": "1"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'1'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'202'"
+   },
+   "ret": "202"
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'202'"
+   }
+  },
+  {
+   "line": 5,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id",
+    "<genexpr>"
+   ],
+   "vars": {
+    "part": "'202'"
+   },
+   "ret": "None"
+  },
+  {
+   "line": 6,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id"
+   ],
+   "vars": {
+    "text": "'10.255.1.202'",
+    "a": "10",
+    "b": "255",
+    "c": "1",
+    "d": "202"
+   }
+  },
+  {
+   "line": 6,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>",
+    "_router_id"
+   ],
+   "vars": {
+    "text": "'10.255.1.202'",
+    "a": "10",
+    "b": "255",
+    "c": "1",
+    "d": "202"
+   },
+   "ret": "184484298"
+  },
+  {
+   "line": 33,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest",
+    "<lambda>"
+   ],
+   "vars": {
+    "r": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   },
+   "ret": "184484298"
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'})]",
+    "best": "184484298",
+    "i": "1",
+    "route": "{'local_pref': 100, 'as_path': [64502, 64511], 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'}"
+   }
+  },
+  {
+   "line": 16,
+   "stack": [
+    "bgp_best_path",
+    "_keep_lowest"
+   ],
+   "vars": {
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'})]",
+    "best": "184484298"
+   },
+   "ret": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'})]"
+  },
+  {
+   "line": 34,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'})]",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64501"
+   }
+  },
+  {
+   "line": 34,
+   "stack": [
+    "bgp_best_path"
+   ],
+   "vars": {
+    "routes": "[{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 100, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 10, 'router_id': '10.255.1.201'},…",
+    "alive": "[(1, {'local_pref': 100, 'as_path': …, 'origin': 'IGP', 'med': 50, 'neighbor_as': 64502, 'ebgp': False, 'igp_cost': 20, 'router_id': '10.255.1.202'})]",
+    "lowest": "{64501: 20, 64502: 50}",
+    "_": "2",
+    "r": "{'local_pref': 100, 'as_path': [64501, 64511], 'origin': 'IGP', 'med': 20, 'neighbor_as': 64501, 'ebgp': False, 'igp_cost': 30, 'router_id': '10.255.2.201'}",
+    "group": "64501"
+   },
+   "ret": "1"
+  }
+ ]
+}

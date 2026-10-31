@@ -43,7 +43,7 @@ export default function Landing() {
           { icon: Eye, title: "Watch it run", body: "Every algorithm, protocol and distributed pattern is a steppable animation with a sentence per step. Scrub backwards. Change the input." },
           { icon: Code2, title: "Code in the browser", body: "Implement each structure in Python or JavaScript against hidden tests. Then apply the pattern on 150 curated problems." },
           { icon: MessageSquare, title: "An AI coach that hints", body: "Grounded in the lesson you are reading and the code you are writing. It asks the next question; it does not hand you the answer." },
-          { icon: Mic, title: "Mock interviews", body: "Coding, system design and behavioural rounds with a rigorous grader. Solo mode, or AI-assisted mode that grades how you direct an assistant." },
+          { icon: Mic, title: "Mock interviews", body: "Coding, system design, networking and behavioural rounds with a rigorous grader. Solo mode, or AI-assisted mode that grades how you direct an assistant." },
           { icon: Sparkles, title: "The code is the lesson", body: "Rust, Axum, SeaORM, React. The repository is written to be read as a production reference, and the curriculum ends by walking through it." },
         ].map((f) => (
           <div key={f.title} className="rounded-xl border border-line bg-elev p-5">

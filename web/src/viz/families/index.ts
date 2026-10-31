@@ -6,6 +6,7 @@ import type { Family } from "../engine";
 import { bitsFamily } from "./bits";
 import { concurrencyFamily } from "./concurrency";
 import { dpFamily } from "./dp";
+import { fabricFamily } from "./fabric";
 import { hashTableFamily } from "./hash-table";
 import { heapFamily } from "./heap";
 import { linkedListFamily } from "./linked-list";
@@ -35,4 +36,5 @@ export const extraFamilies: Record<string, Family<never, unknown>> = {
   concurrency: f(concurrencyFamily),
   memory: f(memoryFamily),
   ml: f(mlFamily),
+  fabric: f(fabricFamily),
 };

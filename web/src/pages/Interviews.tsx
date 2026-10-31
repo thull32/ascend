@@ -1,4 +1,4 @@
-import { Bot, Code2, MessagesSquare, Server, UserRound } from "lucide-react";
+import { Bot, Code2, MessagesSquare, Network, Server, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
@@ -12,6 +12,7 @@ const KINDS: { kind: InterviewKind; title: string; body: string; icon: typeof Co
   { kind: "coding", title: "Coding", body: "One problem from the full practice collection, a live editor, and an interviewer who probes complexity, edge cases and trade-offs.", icon: Code2, minutes: 45 },
   { kind: "system_design", title: "System design", body: "A Netflix-scale design prompt. Requirements, estimates, architecture, deep dives, failure modes.", icon: Server, minutes: 45 },
   { kind: "behavioral", title: "Behavioural", body: "Senior-level STAR questions with follow-ups that test ownership, judgement and conflict handling.", icon: MessagesSquare, minutes: 30 },
+  { kind: "networking", title: "Networking", body: "A principal network engineer's panel: packet walks, BGP, fabrics and overlays, troubleshooting and RoCE, one layer deeper each time. No device CLI needed.", icon: Network, minutes: 45 },
 ];
 
 export default function Interviews() {
@@ -44,7 +45,7 @@ export default function Interviews() {
           </p>
         </Card>
       )}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {KINDS.map((k) => (
           <button key={k.kind} onClick={() => setKind(k.kind)} className={cn("rounded-xl border p-4 text-left", kind === k.kind ? "border-accent bg-accent/10" : "border-line bg-elev hover:bg-elev-2")} data-testid={`kind-${k.kind}`}>
             <k.icon className="mb-2 h-5 w-5 text-accent" />
