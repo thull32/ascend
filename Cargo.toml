@@ -79,7 +79,7 @@ eventsource-stream = "0.2"
 # Only what the grader needs: the Cranelift compiler and the runtime. No
 # component model, GC or threads, which learner programs never use.
 wasmtime = { version = "49", default-features = false, features = ["cranelift", "runtime", "std", "parallel-compilation"] }
-wasmtime-wasi = { version = "49", default-features = false, features = ["p1"] }
+wasmtime-wasi = { version = "50", default-features = false, features = ["p1"] }
 
 # --- caching ---
 
