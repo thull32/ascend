@@ -490,6 +490,18 @@ async fn retention_keeps_what_the_privacy_page_promises() {
         "INSERT INTO activity_days (user_id, day) VALUES ('{id}', current_date - 450), ('{id}', current_date - 5)"
     ))
     .await;
+    // Reports: closed long ago (goes), closed recently and open but old (stay).
+    let report = |status: &str, created: i32, closed: Option<i32>| {
+        let closed = closed.map_or("NULL".to_string(), |d| format!("now() - interval '{d} days'"));
+        format!(
+            "INSERT INTO content_reports (id, user_id, target_kind, target_slug, category, message, status, closed_at, \
+             created_at) VALUES (gen_random_uuid(), '{id}', 'lesson', 'basics/intro/hello', 'other', 'retention', \
+             '{status}', {closed}, now() - interval '{created} days')"
+        )
+    };
+    exec(report("resolved", 500, Some(400))).await;
+    exec(report("dismissed", 500, Some(100))).await;
+    exec(report("open", 800, None)).await;
 
     // While another replica holds the round's lock, this one skips.
     let blocker = sea_orm::TransactionTrait::begin(&app.db).await.unwrap();
@@ -523,6 +535,11 @@ async fn retention_keeps_what_the_privacy_page_promises() {
     assert_eq!(kept("SELECT count(*)::bigint AS n FROM conversations WHERE user_id = $1").await, 1);
     assert_eq!(kept("SELECT count(*)::bigint AS n FROM ai_usage WHERE user_id = $1").await, 1);
     assert_eq!(kept("SELECT count(*)::bigint AS n FROM activity_days WHERE user_id = $1").await, 1);
+    assert_eq!(
+        kept("SELECT count(*)::bigint AS n FROM content_reports WHERE user_id = $1").await,
+        2,
+        "open reports and recently closed ones stay"
+    );
 }
 
 #[tokio::test]
@@ -815,6 +832,188 @@ async fn admins_manage_learners_and_every_change_is_audited() {
         StatusCode::UNPROCESSABLE_ENTITY
     );
     assert_eq!(app.call("GET", "/api/admin/ai-usage", None, Some(&admin), false).await.body["days"], 30);
+}
+
+#[tokio::test]
+async fn reports_funnel_invite_attribution_and_the_weekly_digest() {
+    use ascend_core::auth::{AuthService, RegisterInput, invites};
+    let Some(app) = test_app().await else { return };
+    let app = &app;
+    let (admin, admin_user) = app.register().await;
+    let (learner, learner_user) = app.register().await;
+    let admin_email = admin_user["email"].as_str().unwrap().to_string();
+    let learner_id = learner_user["id"].as_str().unwrap().to_string();
+    let learner_email = learner_user["email"].as_str().unwrap().to_string();
+    let token = |method: &str, path: &str, body: Value| {
+        let req = Request::builder()
+            .method(method)
+            .uri(path)
+            .header("x-requested-with", "fetch")
+            .header(header::AUTHORIZATION, "Bearer an-admin-token-that-is-long-enough-123")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap();
+        let router = app.router.clone();
+        async move { router.oneshot(req).await.unwrap().status() }
+    };
+    assert_eq!(token("PUT", "/api/admin/roles", json!({"email": admin_email, "role": "admin"})).await, StatusCode::OK);
+
+    // A learner reports a problem; bad reports are refused.
+    let slug = "basics/intro/hello";
+    let report = |body: Value, cookie: Option<&str>| {
+        let cookie = cookie.map(str::to_owned);
+        async move { app.call("POST", "/api/reports", Some(body), cookie.as_deref(), true).await }
+    };
+    let good = json!({"target_kind": "lesson", "target_slug": slug, "category": "mistake",
+                      "message": "The second example adds 2 and 2 and gets 5, private detail"});
+    assert_eq!(report(good.clone(), None).await.status, StatusCode::UNAUTHORIZED);
+    let mut bad = good.clone();
+    bad["category"] = json!("rant");
+    assert_eq!(report(bad, Some(&learner)).await.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let mut bad = good.clone();
+    bad["message"] = json!("short");
+    assert_eq!(report(bad, Some(&learner)).await.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let mut bad = good.clone();
+    bad["target_slug"] = json!("basics/intro/nope");
+    assert_eq!(report(bad, Some(&learner)).await.status, StatusCode::NOT_FOUND);
+    let r = report(good, Some(&learner)).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    let report_id = r.body["id"].as_str().unwrap().to_string();
+
+    // Admins see the queue; learners do not.
+    assert_eq!(app.call("GET", "/api/admin/reports", None, Some(&learner), false).await.status, StatusCode::FORBIDDEN);
+    let r = app.call("GET", "/api/admin/reports?status=open&limit=200", None, Some(&admin), false).await;
+    let row = r.body["items"].as_array().unwrap().iter().find(|x| x["id"] == report_id.as_str()).unwrap().clone();
+    assert_eq!(
+        (row["target_title"].as_str(), row["reporter_email"].as_str()),
+        (Some("Hello"), Some(learner_email.as_str()))
+    );
+    assert_eq!(
+        app.call("GET", "/api/admin/reports?status=later", None, Some(&admin), false).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    let close = |status: &str| {
+        let body = json!({ "status": status });
+        let path = format!("/api/admin/reports/{report_id}");
+        let admin = admin.clone();
+        async move { app.call("PUT", &path, Some(body), Some(&admin), true).await }
+    };
+    assert_eq!(close("later").await.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let r = close("resolved").await;
+    assert_eq!(
+        (r.body["status"].as_str(), r.body["closed_by"].as_str()),
+        (Some("resolved"), Some(admin_email.as_str()))
+    );
+    assert!(r.body["closed_at"].is_string());
+    let r = app.call("GET", &format!("/api/admin/users/{learner_id}"), None, Some(&admin), false).await;
+    assert_eq!(r.body["reports"].as_array().unwrap().len(), 1);
+    let r = app.call("GET", "/api/admin/audit?limit=200", None, Some(&admin), false).await;
+    let entry = r.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["detail"]["report"] == report_id.as_str())
+        .unwrap()
+        .clone();
+    assert_eq!(
+        (entry["action"].as_str(), entry["detail"]["to"].as_str()),
+        (Some("set_report_status"), Some("resolved"))
+    );
+    assert!(!entry.to_string().contains("private detail"), "the log never holds the report text");
+
+    // The funnel: finishing the only lesson of a module finishes the module.
+    let done = app
+        .call(
+            "PUT",
+            &format!("/api/progress/lessons/{slug}"),
+            Some(json!({"status": "completed"})),
+            Some(&learner),
+            true,
+        )
+        .await;
+    assert_eq!(done.status, StatusCode::OK);
+    let r = app.call("GET", "/api/admin/funnel", None, Some(&admin), false).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    let cohorts = r.body["cohorts"].as_array().unwrap();
+    assert_eq!(cohorts.len(), 12);
+    let this_week = cohorts.last().unwrap();
+    assert!(
+        this_week["signed_up"].as_i64() >= Some(2) && this_week["completed_module"].as_i64() >= Some(1),
+        "{this_week}"
+    );
+    assert_eq!(this_week["week2_eligible"], 0, "a cohort is not judged before its second week is over");
+    assert_eq!(
+        app.call("GET", "/api/admin/funnel?weeks=2", None, Some(&admin), false).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+
+    // Accounts remember the invite they came from.
+    let auth = AuthService::new(app.db.clone(), Duration::from_secs(3600), Duration::from_secs(1800)).invite_only(true);
+    let note = format!("attribution {}", uuid::Uuid::now_v7());
+    let code = invites::create(&app.db, 1, None, &note).await.unwrap();
+    let invited = format!("inv-{}@example.com", uuid::Uuid::now_v7());
+    auth.register(
+        RegisterInput {
+            email: invited.clone(),
+            password: "a long enough passphrase".into(),
+            display_name: "Invited".into(),
+            timezone: None,
+            invite: Some(code),
+        },
+        None,
+    )
+    .await
+    .unwrap();
+    let r = app.call("GET", "/api/admin/invites", None, Some(&admin), false).await;
+    let inv = r.body.as_array().unwrap().iter().find(|i| i["note"] == note.as_str()).unwrap().clone();
+    assert_eq!(inv["accounts"], 1);
+    let r = app
+        .call("GET", &format!("/api/admin/users?invite={}", inv["id"].as_str().unwrap()), None, Some(&admin), false)
+        .await;
+    assert_eq!((r.body["total"].as_i64(), r.body["items"][0]["email"].as_str()), (Some(1), Some(invited.as_str())));
+    assert_eq!(r.body["items"][0]["invite_note"], note.as_str());
+    assert_eq!(
+        app.call("GET", "/api/admin/users?invite=zz", None, Some(&admin), false).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+
+    // The weekly digest: on by default, per admin, with a preview.
+    let r = app.call("GET", "/api/admin/digest", None, Some(&admin), false).await;
+    assert_eq!(
+        (r.body["subscribed"].as_bool(), r.body["mail_enabled"].as_bool()),
+        (Some(true), Some(true)),
+        "{:?}",
+        r.body
+    );
+    assert!(r.body["preview"]["subject"].as_str().unwrap().starts_with("Ascend, week of"));
+    let r = app.call("PUT", "/api/admin/digest", Some(json!({"subscribed": false})), Some(&admin), true).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(app.call("GET", "/api/admin/digest", None, Some(&admin), false).await.body["subscribed"], false);
+    assert_eq!(token("PUT", "/api/admin/digest", json!({"subscribed": true})).await, StatusCode::UNPROCESSABLE_ENTITY);
+    app.call("PUT", "/api/admin/digest", Some(json!({"subscribed": true})), Some(&admin), true).await;
+
+    // A week long past, so no other test or real week shares the claim.
+    let digest = &app.state.digest;
+    app.db.execute_unprepared("DELETE FROM admin_digest_weeks WHERE week = '2001-01-01'").await.unwrap();
+    let monday = chrono::DateTime::parse_from_rfc3339("2001-01-01T17:00:00Z").unwrap().with_timezone(&chrono::Utc);
+    let early = chrono::DateTime::parse_from_rfc3339("2001-01-01T09:00:00Z").unwrap().with_timezone(&chrono::Utc);
+    assert_eq!(digest.send_if_due(&app.state.mailer, early).await.unwrap(), None, "not before Monday afternoon");
+    let sent = digest.send_if_due(&app.state.mailer, monday).await.unwrap();
+    assert!(sent.is_some_and(|n| n >= 1), "{sent:?}");
+    assert_eq!(digest.send_if_due(&app.state.mailer, monday).await.unwrap(), None, "each week is sent once");
+    let mail = app
+        .emails
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|e| e.to == admin_email && e.subject.starts_with("Ascend, week"))
+        .cloned()
+        .expect("digest to the admin");
+    assert!(mail.subject.starts_with("Ascend, week of 25 Dec"), "{}", mail.subject);
+    assert!(
+        mail.html.contains("/admin") && !mail.text.contains(&learner_email) && !mail.text.contains("private detail")
+    );
+    app.db.execute_unprepared("DELETE FROM admin_digest_weeks WHERE week = '2001-01-01'").await.unwrap();
 }
 
 #[tokio::test]

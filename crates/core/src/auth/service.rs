@@ -154,9 +154,8 @@ impl AuthService {
         // refused or failed sign-up leaves the code unused, and concurrent
         // sign-ups cannot exceed its uses (the UPDATE takes the row lock).
         let txn = self.db.begin().await?;
-        if self.invite_only {
-            super::invites::consume(&txn, input.invite.as_deref()).await?;
-        }
+        let invite =
+            if self.invite_only { Some(super::invites::consume(&txn, input.invite.as_deref()).await?) } else { None };
         let user = users::ActiveModel {
             id: Set(Uuid::now_v7()),
             email: Set(email),
@@ -182,6 +181,9 @@ impl AuthService {
             }
             _ => AppError::Database(e),
         })?;
+        if let Some(invite) = &invite {
+            super::invites::record_redemption(&txn, user.id, invite).await?;
+        }
         txn.commit().await?;
         let session = self.create_session(user.id, user_agent).await?;
         Ok((user.into(), session))

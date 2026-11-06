@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { Button, Card, ErrorBox, PageTitle, Spinner } from "../../components/ui";
 import { adminApi, fmtDate, useAdminAction, useAdminInvites } from "../../lib/admin";
 import { useFeatures } from "../../lib/queries";
@@ -86,7 +87,7 @@ export default function Invites() {
         ) : list.data.length === 0 ? (
           <p className="text-sm text-muted">No invites.</p>
         ) : (
-          <Table head={["Id", "For", "Used", "Expires", "Created", ""]}>
+          <Table head={["Id", "For", "Used", "Accounts", "Expires", "Created", ""]}>
             {[...list.data].reverse().map((i) => {
               const expired = i.expires_at != null && new Date(i.expires_at) < new Date();
               const spent = i.uses >= i.max_uses;
@@ -97,6 +98,15 @@ export default function Invites() {
                   <Td className="tabular-nums">
                     {i.uses} / {i.max_uses}
                     {spent && <span className="ml-1 text-xs">(used up)</span>}
+                  </Td>
+                  <Td className="tabular-nums">
+                    {i.accounts > 0 ? (
+                      <Link className="text-accent hover:underline" to={`/admin/users?invite=${i.id}`}>
+                        {i.accounts}
+                      </Link>
+                    ) : (
+                      <span className="text-muted">0</span>
+                    )}
                   </Td>
                   <Td className="whitespace-nowrap">
                     {i.expires_at ? fmtDate(i.expires_at) : "never"}

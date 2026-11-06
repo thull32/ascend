@@ -121,7 +121,18 @@ retention drops it after a year. Guard rails are in the service, not the UI: nob
 own admin role, and admins cannot be deleted until demoted, so the last admin cannot lock everyone out.
 
 Content is read-only there: it is Markdown compiled into the binary and validated in CI, so it is
-changed through the repository.
+changed through the repository. Learners feed it instead: `POST /api/reports` (`services/reports.rs`)
+files a problem report against a lesson or problem, and admins resolve or dismiss them (audited, with
+the report id but never its text).
+
+The funnel (`services/funnel.rs`) groups accounts by UTC sign-up week and counts onboarding, a first
+lesson, a first finished module (the curriculum's lesson→module map is passed to Postgres as two
+arrays) and activity in days 8–14 and 22–28; a cohort only counts towards a return week once that week
+has ended. It also lists the lesson each learner quiet for 14 days last touched. Registration records
+the invite it consumed in `invite_redemptions` (short id and note, not a foreign key, so attribution
+survives revoking the invite). The weekly digest (`services/digest.rs`) is sent from the hourly
+maintenance loop on Mondays after 16:00 UTC; the week is claimed with an insert into
+`admin_digest_weeks` first, which is what makes it once-only across replicas.
 
 ## AI features
 

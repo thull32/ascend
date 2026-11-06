@@ -32,7 +32,7 @@ pub enum Actor {
 }
 
 impl Actor {
-    fn id(&self) -> Option<Uuid> {
+    pub(crate) fn id(&self) -> Option<Uuid> {
         match self {
             Actor::Admin { id, .. } => Some(*id),
             Actor::Token => None,
@@ -63,7 +63,7 @@ fn default_limit() -> u64 {
 }
 
 impl Page {
-    fn clamped(self) -> (i64, i64) {
+    pub(crate) fn clamped(self) -> (i64, i64) {
         (std::cmp::Ord::min(self.offset, 1_000_000) as i64, self.limit.clamp(1, 200) as i64)
     }
 }
@@ -89,6 +89,7 @@ pub struct Totals {
     pub ai_requests_today: i64,
     pub ai_input_tokens_today: i64,
     pub ai_output_tokens_today: i64,
+    pub reports_open: i64,
 }
 
 #[derive(Debug, Serialize, FromQueryResult)]
@@ -141,6 +142,9 @@ pub struct UserFilter {
     pub role: Option<String>,
     #[serde(default)]
     pub sort: UserSort,
+    /// An invite's short id: only the accounts that signed up with it.
+    #[serde(default)]
+    pub invite: Option<String>,
 }
 
 #[derive(Debug, Serialize, FromQueryResult)]
@@ -158,6 +162,9 @@ pub struct UserRow {
     pub last_active: Option<NaiveDate>,
     pub lessons_completed: i64,
     pub problems_solved: i64,
+    /// The note of the invite the account signed up with.
+    pub invite_note: Option<String>,
+    pub invite_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -285,6 +292,16 @@ pub struct UserDetail {
     pub sessions: Vec<SessionRow>,
     pub counts: Counts,
     pub audit: Vec<AuditEntry>,
+    /// The invite the account signed up with, if it needed one.
+    pub invite: Option<InviteSource>,
+    pub reports: Vec<super::reports::ReportRow>,
+}
+
+#[derive(Debug, Serialize, FromQueryResult)]
+pub struct InviteSource {
+    pub invite_id: String,
+    pub note: String,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, FromQueryResult)]
@@ -410,7 +427,7 @@ pub struct UsageReport {
     pub top_users: Vec<UsageUser>,
 }
 
-fn stmt(sql: &str, values: impl IntoIterator<Item = Value>) -> Statement {
+pub(crate) fn stmt(sql: &str, values: impl IntoIterator<Item = Value>) -> Statement {
     Statement::from_sql_and_values(DatabaseBackend::Postgres, sql, values)
 }
 
@@ -430,7 +447,7 @@ fn contains_pattern(text: &str) -> String {
 
 /// Records one admin action. Generic over the connection so a change and
 /// its record commit together.
-async fn record<C: ConnectionTrait>(
+pub(crate) async fn record<C: ConnectionTrait>(
     conn: &C,
     actor: &Actor,
     action: &str,
@@ -521,7 +538,8 @@ impl AdminService {
                (SELECT count(*) FROM sessions WHERE expires_at > now())::bigint AS live_sessions, \
                (SELECT coalesce(sum(requests), 0) FROM ai_usage WHERE day = current_date)::bigint AS ai_requests_today, \
                (SELECT coalesce(sum(input_tokens), 0) FROM ai_usage WHERE day = current_date)::bigint AS ai_input_tokens_today, \
-               (SELECT coalesce(sum(output_tokens), 0) FROM ai_usage WHERE day = current_date)::bigint AS ai_output_tokens_today",
+               (SELECT coalesce(sum(output_tokens), 0) FROM ai_usage WHERE day = current_date)::bigint AS ai_output_tokens_today, \
+               (SELECT count(*) FROM content_reports WHERE status = 'open')::bigint AS reports_open",
             [],
         ))
         .one(&self.db)
@@ -563,13 +581,21 @@ impl AdminService {
             return Err(AppError::validation(format!("role must be one of {}", ROLES.join(", "))));
         }
         let role = filter.role.filter(|r| !r.is_empty());
+        let invite = filter.invite.map(|i| i.trim().to_ascii_lowercase()).filter(|i| !i.is_empty());
+        if invite.as_deref().is_some_and(|i| i.len() != 8 || !i.bytes().all(|b| b.is_ascii_hexdigit())) {
+            return Err(AppError::validation("invite must be the 8-character id from the invite list"));
+        }
         let filter_sql = "($1::text IS NULL OR u.email ILIKE $1 OR u.display_name ILIKE $1) \
-                          AND ($2::text IS NULL OR u.role = $2)";
+                          AND ($2::text IS NULL OR u.role = $2) \
+                          AND ($3::text IS NULL OR r.invite_id = $3)";
         let total: i64 = self
             .db
             .query_one_raw(stmt(
-                &format!("SELECT count(*)::bigint AS n FROM users u WHERE {filter_sql}"),
-                [q.clone().into(), role.clone().into()],
+                &format!(
+                    "SELECT count(*)::bigint AS n FROM users u \
+                     LEFT JOIN invite_redemptions r ON r.user_id = u.id WHERE {filter_sql}"
+                ),
+                [q.clone().into(), role.clone().into(), invite.clone().into()],
             ))
             .await?
             .map(|r| r.try_get("", "n"))
@@ -584,11 +610,13 @@ impl AdminService {
                    (SELECT count(*) FROM lesson_progress p WHERE p.user_id = u.id AND p.status = 'completed')::bigint \
                      AS lessons_completed, \
                    (SELECT count(DISTINCT target_slug) FROM submissions s \
-                     WHERE s.user_id = u.id AND s.target_kind = 'problem' AND s.passed)::bigint AS problems_solved \
-                 FROM users u WHERE {filter_sql} ORDER BY {} LIMIT $3 OFFSET $4",
+                     WHERE s.user_id = u.id AND s.target_kind = 'problem' AND s.passed)::bigint AS problems_solved, \
+                   r.note AS invite_note, r.invite_id \
+                 FROM users u LEFT JOIN invite_redemptions r ON r.user_id = u.id \
+                 WHERE {filter_sql} ORDER BY {} LIMIT $4 OFFSET $5",
                 filter.sort.order_by()
             ),
-            [q.into(), role.into(), limit.into(), offset.into()],
+            [q.into(), role.into(), invite.into(), limit.into(), offset.into()],
         ))
         .all(&self.db)
         .await?;
@@ -658,7 +686,18 @@ impl AdminService {
         ))
         .all(&self.db)
         .await?;
+        let invite = InviteSource::find_by_statement(by_user(
+            "SELECT invite_id, note, created_at FROM invite_redemptions WHERE user_id = $1",
+        ))
+        .one(&self.db)
+        .await?;
+        let reports = super::reports::ReportService::new(self.db.clone(), self.curriculum.clone())
+            .list(super::reports::ReportFilter { status: None, reporter: Some(id) }, Page { offset: 0, limit: 50 })
+            .await?
+            .items;
         Ok(UserDetail {
+            invite,
+            reports,
             account: user.into(),
             progress,
             activity,

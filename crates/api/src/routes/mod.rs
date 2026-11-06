@@ -10,4 +10,5 @@ pub mod health;
 pub mod interviews;
 pub mod problems;
 pub mod progress;
+pub mod reports;
 pub mod sse;

@@ -114,13 +114,29 @@ fn layout(greeting: &str, paragraphs: &[&str], link: &str, button: &str, footer:
          border-radius:8px;text-decoration:none\">{}</a></p><p style=\"font-size:13px;color:#555\">Or paste this link \
          into your browser:<br>{}</p><p style=\"font-size:13px;color:#555\">{}</p></div>",
         escape(greeting),
-        paragraphs.iter().map(|p| format!("<p>{}</p>", escape(p))).collect::<String>(),
+        paragraphs.iter().map(|p| format!("<p>{}</p>", escape(p).replace('\n', "<br>"))).collect::<String>(),
         escape(link),
         escape(button),
         escape(link),
         escape(footer)
     );
     (text, html)
+}
+
+/// A plain message with one button, e.g. the weekly admin digest. Each
+/// paragraph is escaped; none may carry markup.
+pub fn notice(
+    to: &str,
+    subject: &str,
+    greeting: &str,
+    paragraphs: &[String],
+    link: &str,
+    button: &str,
+    footer: &str,
+) -> Email {
+    let paragraphs: Vec<&str> = paragraphs.iter().map(String::as_str).collect();
+    let (text, html) = layout(greeting, &paragraphs, link, button, footer);
+    Email { to: to.into(), subject: subject.into(), text, html }
 }
 
 pub fn password_reset(to: &str, name: &str, link: &str) -> Email {

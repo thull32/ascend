@@ -39,6 +39,7 @@ pub fn build(state: AppState) -> Router {
         .merge(routes::problems::router(state.clone()))
         .merge(routes::progress::router())
         .merge(routes::comments::router())
+        .merge(routes::reports::router())
         .merge(routes::coach::router(state.clone()))
         .merge(routes::interviews::router(state.clone()))
         .route_layer(middleware::from_fn(crate::middleware::metrics::stamp_route))

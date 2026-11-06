@@ -31,6 +31,7 @@ export interface Totals {
   ai_requests_today: number;
   ai_input_tokens_today: number;
   ai_output_tokens_today: number;
+  reports_open: number;
 }
 
 export interface DayCount {
@@ -62,6 +63,8 @@ export interface UserRow {
   last_active: string | null;
   lessons_completed: number;
   problems_solved: number;
+  invite_id: string | null;
+  invite_note: string | null;
 }
 
 export interface Account {
@@ -103,6 +106,64 @@ export interface UserDetail {
   sessions: { created_at: string; last_seen_at: string; expires_at: string; user_agent: string | null }[];
   counts: { comments: number; conversations: number; review_items: number; review_due: number; episodes_heard: number };
   audit: AuditEntry[];
+  invite: { invite_id: string; note: string; created_at: string } | null;
+  reports: ReportRow[];
+}
+
+export type ReportCategory = "mistake" | "broken" | "unclear" | "other";
+export type ReportStatus = "open" | "resolved" | "dismissed";
+
+export interface ReportRow {
+  id: string;
+  reporter_id: string | null;
+  reporter_name: string | null;
+  reporter_email: string | null;
+  target_kind: "lesson" | "problem";
+  target_slug: string;
+  target_title: string | null;
+  category: ReportCategory;
+  message: string;
+  status: ReportStatus;
+  closed_at: string | null;
+  closed_by: string | null;
+  created_at: string;
+}
+
+export const reportCategoryLabel: Record<ReportCategory, string> = {
+  mistake: "Mistake",
+  broken: "Something broken",
+  unclear: "Unclear",
+  other: "Other",
+};
+
+export interface Cohort {
+  week: string;
+  signed_up: number;
+  onboarded: number;
+  started_lesson: number;
+  completed_lesson: number;
+  completed_module: number;
+  week2_eligible: number;
+  week2_active: number;
+  week4_eligible: number;
+  week4_active: number;
+}
+
+export interface Funnel {
+  weeks: number;
+  cohorts: Cohort[];
+  quiet_days: number;
+  quiet_learners: number;
+  quiet_never_started: number;
+  stop_points: { slug: string; title: string | null; track: string | null; stopped_in: number; stopped_after: number }[];
+}
+
+export interface DigestStatus {
+  mail_enabled: boolean;
+  subscribed: boolean | null;
+  next_send: string;
+  last_sent: { week: string; sent_at: string; recipients: number } | null;
+  preview: { subject: string; text: string };
 }
 
 export interface LessonStats {
@@ -157,6 +218,7 @@ export interface Invite {
   note: string;
   max_uses: number;
   uses: number;
+  accounts: number;
   expires_at: string | null;
   created_at: string;
 }
@@ -168,7 +230,7 @@ const qs = (params: Record<string, string | number | boolean | undefined>) => {
 
 export const useAdminOverview = () => useQuery({ queryKey: ["admin", "overview"], queryFn: () => api.get<Overview>("/admin/overview"), staleTime: 30_000 });
 
-export const useAdminUsers = (p: { q?: string; role?: string; sort: UserSort; offset: number; limit: number }) =>
+export const useAdminUsers = (p: { q?: string; role?: string; invite?: string; sort: UserSort; offset: number; limit: number }) =>
   useQuery({ queryKey: ["admin", "users", p], queryFn: () => api.get<Paged<UserRow>>(`/admin/users${qs(p)}`), placeholderData: keepPreviousData, staleTime: 15_000 });
 
 export const useAdminUser = (id: string) => useQuery({ queryKey: ["admin", "user", id], queryFn: () => api.get<UserDetail>(`/admin/users/${id}`), staleTime: 15_000 });
@@ -182,6 +244,13 @@ export const useAdminUsage = (days: number) => useQuery({ queryKey: ["admin", "u
 
 export const useAdminAudit = (p: { offset: number; limit: number }) =>
   useQuery({ queryKey: ["admin", "audit", p], queryFn: () => api.get<Paged<AuditEntry>>(`/admin/audit${qs(p)}`), placeholderData: keepPreviousData });
+
+export const useAdminReports = (p: { status?: ReportStatus; offset: number; limit: number }) =>
+  useQuery({ queryKey: ["admin", "reports", p], queryFn: () => api.get<Paged<ReportRow>>(`/admin/reports${qs(p)}`), placeholderData: keepPreviousData });
+
+export const useAdminFunnel = (weeks: number) => useQuery({ queryKey: ["admin", "funnel", weeks], queryFn: () => api.get<Funnel>(`/admin/funnel?weeks=${weeks}`), staleTime: 60_000 });
+
+export const useAdminDigest = () => useQuery({ queryKey: ["admin", "digest"], queryFn: () => api.get<DigestStatus>("/admin/digest"), staleTime: 60_000 });
 
 export const useAdminInvites = () => useQuery({ queryKey: ["admin", "invites"], queryFn: () => api.get<Invite[]>("/admin/invites") });
 
@@ -200,6 +269,8 @@ export const adminApi = {
   deleteComment: (id: string) => api.delete<{ ok: boolean }>(`/admin/comments/${id}`),
   createInvite: (body: { uses: number; days?: number; note: string }) => api.post<{ link: string }>("/admin/invites", body),
   revokeInvite: (id: string) => api.delete<{ revoked: number }>(`/admin/invites/${id}`),
+  setReportStatus: (id: string, status: ReportStatus) => api.put<ReportRow>(`/admin/reports/${id}`, { status }),
+  setDigest: (subscribed: boolean) => api.put<{ subscribed: boolean }>("/admin/digest", { subscribed }),
 };
 
 /** Where a comment's target lives in the app. */

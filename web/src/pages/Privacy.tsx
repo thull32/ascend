@@ -31,8 +31,8 @@ export default function Privacy() {
         <li>
           <strong>Your learning:</strong> lessons you complete, quiz answers, code you submit for grading and the result, activity days (for
           your streak), where you are in each audio episode and which you have finished, your daily review schedule (which quiz questions
-          are due when, and the ones you mark as missed), comments you post, conversations with the AI coach, and mock interview transcripts
-          and grades.
+          are due when, and the ones you mark as missed), comments you post, problems you report in lessons and problems, conversations with
+          the AI coach, and mock interview transcripts and grades. If you joined with an invite, which invite it was.
         </li>
         <li>
           <strong>Security records:</strong> sign-in sessions and recognised browsers (only as hashes of random tokens), single-use email
@@ -51,8 +51,10 @@ export default function Privacy() {
       <h2>Who at Ascend can see it</h2>
       <p>
         The people who run Ascend have an admin view, used to run the service, moderate discussions and help you when you ask. It shows your
-        account details, your progress, quiz and interview scores, whether your graded attempts passed, your AI usage counts and your sign-in
-        sessions. It does not show the code you submit, your conversations with the AI coach or your interview transcripts. Admins can sign
+        account details, your progress, quiz and interview scores, whether your graded attempts passed, your AI usage counts, your sign-in
+        sessions, the invite you joined with, and the problem reports you send (with your name and email, so we can follow up). Progress is
+        also counted across everyone, to see where learners get stuck; a weekly summary email to admins holds only those totals and lesson
+        titles, never your name, email or what you wrote. It does not show the code you submit, your conversations with the AI coach or your interview transcripts. Admins can sign
         you out, send you a password-reset link, remove a comment or delete an account; each of those is recorded in an audit log, kept for a
         year, which holds no email addresses or comment text.
       </p>
@@ -103,6 +105,7 @@ export default function Privacy() {
         <li>AI usage counters: 90 days. Activity days: 400 days (streaks look back that far).</li>
         <li>Daily review episodes and their marks: 30 days. The review schedule itself is kept with your progress.</li>
         <li>Admin audit log entries: one year.</li>
+        <li>Problem reports: until a year after they are resolved or dismissed. If you delete your account, reports you sent stay, without your name.</li>
         <li>Sessions: signed out after 14 days unused, and after 30 days in any case. Recognised browsers: forgotten after a year unused.</li>
         <li>Email links: expire after one hour (password reset) or seven days (address confirmation), and are deleted when used or expired.</li>
         <li>Everything else, such as your profile, progress and quiz answers: until you delete your account.</li>

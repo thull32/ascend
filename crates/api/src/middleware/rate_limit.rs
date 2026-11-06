@@ -52,6 +52,8 @@ pub const VERIFY_PER_ACCOUNT: SharedQuota = SharedQuota { limit: 3, period: Dura
 /// Graded submissions: 20 per minute per session. Each can hold a grading
 /// slot for its whole time budget.
 pub const GRADE_PER_SESSION: SharedQuota = SharedQuota::per_minute(20);
+/// Problem reports: 10 an hour per account.
+pub const REPORTS_PER_ACCOUNT: SharedQuota = SharedQuota { limit: 10, period: Duration::from_secs(3600) };
 
 pub struct Limiters {
     /// Everything else: 1,200 per minute per IP, per replica.

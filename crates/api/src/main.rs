@@ -117,12 +117,14 @@ async fn main() -> anyhow::Result<()> {
     let app = app::build(state.clone());
 
     // Background maintenance, hourly: sweep expired sessions and email
-    // links, prune rate-limiter state, and apply the retention policy.
+    // links, prune rate-limiter state, apply the retention policy and send
+    // the weekly admin digest when it is due.
     {
         let auth = state.auth.clone();
         let limiter = state.limiter.clone();
         let review = state.review.clone();
         let db = state.db.clone();
+        let (digest, mailer) = (state.digest.clone(), state.mailer.clone());
         tokio::spawn(async move {
             let mut tick = tokio::time::interval(Duration::from_secs(3600));
             loop {
@@ -140,6 +142,12 @@ async fn main() -> anyhow::Result<()> {
                 // Daily review episodes are kept for 30 days (the privacy page says so).
                 if let Err(e) = review.expire(30).await {
                     tracing::warn!(error = %e, "expiring daily reviews failed");
+                }
+                // Monday's admin digest, once per week across replicas.
+                match digest.send_if_due(&mailer, chrono::Utc::now()).await {
+                    Ok(Some(n)) => tracing::info!(recipients = n, "sent the weekly admin digest"),
+                    Ok(None) => {}
+                    Err(e) => tracing::warn!(error = %e, "weekly admin digest failed"),
                 }
             }
         });

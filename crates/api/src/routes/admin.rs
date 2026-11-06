@@ -15,6 +15,9 @@ use ascend_core::services::admin::{
     Account, Actor, AuditEntry, CommentFilter, CommentRow, ContentReport, Overview, Page, Paged, UsageReport,
     UserDetail, UserFilter, UserRow,
 };
+use ascend_core::services::digest::DigestStatus;
+use ascend_core::services::funnel::Funnel;
+use ascend_core::services::reports::{ReportFilter, ReportRow};
 use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::HeaderMap;
 use axum::http::request::Parts;
@@ -46,6 +49,10 @@ pub fn router() -> Router<AppState> {
         .route("/admin/audit", get(audit))
         .route("/admin/invites", get(list_invites).post(create_invite))
         .route("/admin/invites/{id}", delete(revoke_invite))
+        .route("/admin/reports", get(reports))
+        .route("/admin/reports/{id}", put(set_report_status))
+        .route("/admin/funnel", get(funnel))
+        .route("/admin/digest", get(digest).put(set_digest))
 }
 
 /// The authorised caller of an admin route.
@@ -252,4 +259,67 @@ async fn revoke_invite(
     let revoked = invites::revoke(&state.db, &id).await?;
     state.admin.record_invite_revoked(&actor, &id, revoked).await?;
     Ok(Json(json!({ "revoked": revoked })))
+}
+
+async fn reports(
+    _: Operator,
+    State(state): State<AppState>,
+    Query(filter): Query<ReportFilter>,
+    Query(page): Query<Page>,
+) -> ApiResult<Json<Paged<ReportRow>>> {
+    Ok(Json(state.reports.list(filter, page).await?))
+}
+
+#[derive(Deserialize)]
+struct StatusChange {
+    status: String,
+}
+
+async fn set_report_status(
+    Operator(actor): Operator,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    AppJson(body): AppJson<StatusChange>,
+) -> ApiResult<Json<ReportRow>> {
+    Ok(Json(state.reports.set_status(&actor, id, &body.status).await?))
+}
+
+#[derive(Deserialize)]
+struct FunnelQuery {
+    #[serde(default = "twelve")]
+    weeks: i32,
+}
+
+fn twelve() -> i32 {
+    12
+}
+
+async fn funnel(_: Operator, State(state): State<AppState>, Query(q): Query<FunnelQuery>) -> ApiResult<Json<Funnel>> {
+    Ok(Json(state.funnel.report(q.weeks).await?))
+}
+
+async fn digest(Operator(actor): Operator, State(state): State<AppState>) -> ApiResult<Json<DigestStatus>> {
+    let admin = match &actor {
+        Actor::Admin { id, .. } => Some(*id),
+        Actor::Token => None,
+    };
+    Ok(Json(state.digest.status(&state.mailer, admin, chrono::Utc::now()).await?))
+}
+
+#[derive(Deserialize)]
+struct DigestChange {
+    subscribed: bool,
+}
+
+/// Turns the weekly email on or off for the signed-in admin.
+async fn set_digest(
+    Operator(actor): Operator,
+    State(state): State<AppState>,
+    AppJson(body): AppJson<DigestChange>,
+) -> ApiResult<Json<Value>> {
+    let Actor::Admin { id, .. } = actor else {
+        return Err(AppError::validation("the operator token has no inbox; sign in as an admin").into());
+    };
+    state.digest.set_subscribed(id, body.subscribed).await?;
+    Ok(Json(json!({ "subscribed": body.subscribed })))
 }

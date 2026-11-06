@@ -31,6 +31,7 @@ mod m0014_invites;
 mod m0015_audio_feeds;
 mod m0016_listening;
 mod m0017_admin_audit;
+mod m0018_reports_invites_digest;
 
 pub struct Migrator;
 
@@ -55,6 +56,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0015_audio_feeds::Migration),
             Box::new(m0016_listening::Migration),
             Box::new(m0017_admin_audit::Migration),
+            Box::new(m0018_reports_invites_digest::Migration),
         ]
     }
 }

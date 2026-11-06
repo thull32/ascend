@@ -76,6 +76,7 @@ const ACTIONS: Record<string, string> = {
   delete_comment: "Removed comment",
   create_invite: "Created invite",
   revoke_invite: "Revoked invite",
+  set_report_status: "Updated report",
 };
 
 function describe(e: AuditEntry): string {
@@ -91,6 +92,8 @@ function describe(e: AuditEntry): string {
       return `${String(d.uses)} use(s)${d.days ? `, ${String(d.days)} days` : ""}${d.note ? ` · ${String(d.note)}` : ""}`;
     case "revoke_invite":
       return `invite ${String(d.invite)}`;
+    case "set_report_status":
+      return `${String(d.from)} → ${String(d.to)} · ${String(d.target_kind)} ${String(d.target_slug)}`;
     default:
       return "";
   }

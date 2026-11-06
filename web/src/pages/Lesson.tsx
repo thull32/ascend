@@ -7,6 +7,7 @@ import { formatDuration, useAudio } from "../lib/audio";
 import { Badge, Button, Crumbs, Spinner } from "../components/ui";
 import { Markdown } from "../components/Markdown";
 import { Comments } from "../components/Comments";
+import { ReportProblem } from "../components/ReportProblem";
 import { useCoachDock } from "../components/CoachDock";
 import { cn, difficultyColor } from "../lib/utils";
 import NotFound from "./NotFound";
@@ -118,6 +119,7 @@ export default function LessonPage() {
 
         {user && <p className="mt-3 text-xs text-muted">This tracks your reading. Quiz results and solved exercises are recorded separately.</p>}
 
+        <ReportProblem kind="lesson" slug={slug} />
         <Comments kind="lesson" slug={slug} />
       </article>
 

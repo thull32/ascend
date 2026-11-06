@@ -8,6 +8,7 @@ import { Badge, Button, Crumbs, Spinner } from "../components/ui";
 import { Markdown } from "../components/Markdown";
 import { CodeRunner } from "../components/Exercise";
 import { Comments } from "../components/Comments";
+import { ReportProblem } from "../components/ReportProblem";
 import { SolutionWalkthrough } from "../components/SolutionWalkthrough";
 import { useCoachDock } from "../components/CoachDock";
 import { cn, difficultyColor, titleCase } from "../lib/utils";
@@ -110,6 +111,7 @@ export default function ProblemPage() {
           />
         </section>
       </div>
+      <ReportProblem kind="problem" slug={slug} />
       <Comments kind="problem" slug={slug} />
     </div>
   );

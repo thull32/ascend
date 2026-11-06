@@ -6,6 +6,7 @@ import { useAuth } from "../../lib/auth";
 import { useCurriculum, useFeatures } from "../../lib/queries";
 import { cn } from "../../lib/utils";
 import { AuditTable, inputClass, Section, Stat, Table, Td } from "./common";
+import { ReportItems } from "./ReportItems";
 
 export default function UserDetail() {
   const { id = "" } = useParams();
@@ -36,6 +37,18 @@ function Page({ d }: { d: Detail }) {
         <Card className="lg:col-span-2">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
             <Field label="Joined" value={fmtDateTime(a.created_at)} />
+            <Field
+              label="Invite"
+              value={
+                d.invite ? (
+                  <Link className="hover:text-accent" to={`/admin/users?invite=${d.invite.invite_id}`}>
+                    {d.invite.note || <span className="font-mono text-xs">{d.invite.invite_id}</span>}
+                  </Link>
+                ) : (
+                  "none (open sign-up)"
+                )
+              }
+            />
             <Field label="Last sign-in" value={fmtDateTime(a.last_login_at)} />
             <Field label="Email" value={a.email_verified_at ? `verified ${fmtDate(a.email_verified_at)}` : "not verified"} />
             <Field label="Onboarded" value={a.onboarded_at ? fmtDate(a.onboarded_at) : "not yet"} />
@@ -192,6 +205,8 @@ function Page({ d }: { d: Detail }) {
           )}
         </Section>
       </div>
+
+      <Section title="Problem reports">{d.reports.length === 0 ? <Empty text="None." /> : <ReportItems reports={d.reports} showReporter={false} />}</Section>
 
       <Section title="Admin changes to this account">
         {d.audit.length === 0 ? <Empty text="None." /> : <AuditTable entries={d.audit} showTarget={false} />}

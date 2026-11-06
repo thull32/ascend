@@ -140,8 +140,8 @@ To add a host: run `railway domain <host> --service <svc>` (custom domains canno
 ## Admin
 
 The admin dashboard is at `/admin` (a shield icon in the header) for accounts with the `admin` role:
-users and their progress, content usage, comment moderation, invites, AI usage and an audit log of
-every admin change. It deliberately does not show learners' code, coach conversations or interview
+users and their progress, a sign-up funnel, content usage, problem reports, comment moderation,
+invites (with the accounts each created), AI usage and an audit log of every admin change. It deliberately does not show learners' code, coach conversations or interview
 transcripts (the privacy page says so).
 
 The production image has no shell, so make the first admin with the operator token:
@@ -155,6 +155,18 @@ The role applies on the next request; no need to sign in again. From then on, ad
 demote each other from a user's page. Nobody can remove their own admin role or delete their own
 account there, and an admin's account cannot be deleted until the role is removed. Locally,
 `ascend-api --set-role EMAIL admin|user` does the same with a database connection.
+
+**Problem reports.** Learners report mistakes, broken pieces and unclear explanations from the foot of
+each lesson and problem (10 an hour, 25 open at most per learner). Work the queue at `/admin/reports`:
+fix the content in the repo, deploy, then mark the report resolved (or dismiss it). Closed reports are
+deleted a year after closing.
+
+**Weekly email.** Every Monday at 16:00 UTC the hourly maintenance loop emails each admin a summary of
+the previous week (sign-ups, activity, AI use, new reports, where learners went quiet). It needs email
+(`RESEND_API_KEY`, `EMAIL_FROM`); without it nothing is sent and the overview page says so. Each week is
+claimed in `admin_digest_weeks` before sending, so replicas and restarts never send twice; if every
+send fails the claim is released and the next hour retries. To resend a week, delete its row. Admins
+turn it off for themselves on the overview page, which also previews it.
 
 ## Invites
 

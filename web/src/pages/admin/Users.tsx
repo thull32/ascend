@@ -13,6 +13,7 @@ export default function Users() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const role = params.get("role") ?? "";
+  const invite = params.get("invite") ?? "";
   const sort = (params.get("sort") as UserSort) || "newest";
   const offset = Number(params.get("offset") ?? 0) || 0;
   const [text, setText] = useState(q);
@@ -30,7 +31,7 @@ export default function Users() {
     return () => clearTimeout(t);
   }, [text]);
 
-  const users = useAdminUsers({ q, role, sort, offset, limit: LIMIT });
+  const users = useAdminUsers({ q, role, invite, sort, offset, limit: LIMIT });
   return (
     <div>
       <PageTitle title="Users" subtitle="Every account. Open one to see its progress, usage and sessions, or to act on it." />
@@ -43,13 +44,21 @@ export default function Users() {
           onChange={(v) => set({ sort: v === "newest" ? "" : v })}
           options={[["newest", "Newest"], ["oldest", "Oldest"], ["last_active", "Recently active"], ["lessons", "Most lessons"], ["email", "Email"]]}
         />
+        {invite && (
+          <span className="inline-flex items-center gap-2 rounded-lg border border-line bg-elev px-2.5 py-1.5 text-sm">
+            Invite <span className="font-mono text-xs">{invite}</span>
+            <button type="button" className="text-muted hover:text-fg" onClick={() => set({ invite: "" })} aria-label="Show every account">
+              ×
+            </button>
+          </span>
+        )}
       </div>
       {users.error && <ErrorBox error={users.error} />}
       {!users.data ? (
         <Spinner className="mt-10" />
       ) : (
         <>
-          <Table head={["Account", "Role", "Joined", "Last active", "Lessons", "Problems", "Status"]}>
+          <Table head={["Account", "Role", "Joined", "Invite", "Last active", "Lessons", "Problems", "Status"]}>
             {users.data.items.map((u) => (
               <tr key={u.id} className="hover:bg-elev-2/50">
                 <Td>
@@ -60,6 +69,15 @@ export default function Users() {
                 </Td>
                 <Td>{u.role === "admin" ? <Badge className="text-accent">admin</Badge> : <span className="text-muted">learner</span>}</Td>
                 <Td className="whitespace-nowrap">{fmtDate(u.created_at)}</Td>
+                <Td className="max-w-40 truncate text-xs">
+                  {u.invite_id ? (
+                    <button type="button" className="text-left hover:text-accent" title={`Accounts from invite ${u.invite_id}`} onClick={() => set({ invite: u.invite_id! })}>
+                      {u.invite_note || u.invite_id}
+                    </button>
+                  ) : (
+                    <span className="text-muted">—</span>
+                  )}
+                </Td>
                 <Td className="whitespace-nowrap">{u.last_active ? fmtDate(`${u.last_active}T12:00:00Z`) : <span className="text-muted">never</span>}</Td>
                 <Td className="tabular-nums">{u.lessons_completed}</Td>
                 <Td className="tabular-nums">{u.problems_solved}</Td>

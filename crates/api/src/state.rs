@@ -21,6 +21,9 @@ pub struct AppState {
     pub curriculum: Arc<Curriculum>,
     pub auth: AuthService,
     pub admin: AdminService,
+    pub reports: ascend_core::services::ReportService,
+    pub funnel: ascend_core::services::funnel::FunnelService,
+    pub digest: ascend_core::services::digest::DigestService,
     pub progress: ProgressService,
     pub quiz: QuizService,
     pub submissions: SubmissionService,
@@ -201,6 +204,13 @@ impl AppState {
             }
             .invite_only(config.signups == ascend_core::config::Signups::Invite),
             admin: AdminService::new(db.clone(), curriculum.clone()),
+            reports: ascend_core::services::ReportService::new(db.clone(), curriculum.clone()),
+            funnel: ascend_core::services::funnel::FunnelService::new(db.clone(), curriculum.clone()),
+            digest: ascend_core::services::digest::DigestService::new(
+                db.clone(),
+                curriculum.clone(),
+                config.public_origin.clone(),
+            ),
             progress: ProgressService::new(db.clone(), curriculum.clone()),
             quiz: QuizService::new(db.clone(), curriculum.clone()),
             submissions: SubmissionService::new(db.clone(), curriculum.clone(), grader),

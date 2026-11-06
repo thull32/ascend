@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { NavLink, Route, Routes } from "react-router";
 import { Spinner } from "../../components/ui";
+import { useAdminOverview } from "../../lib/admin";
 import { useAuth } from "../../lib/auth";
 import { cn } from "../../lib/utils";
 
@@ -12,12 +13,16 @@ const Comments = lazy(() => import("./Comments"));
 const Invites = lazy(() => import("./Invites"));
 const Usage = lazy(() => import("./Usage"));
 const Audit = lazy(() => import("./Audit"));
+const Reports = lazy(() => import("./Reports"));
+const Funnel = lazy(() => import("./Funnel"));
 const NotFound = lazy(() => import("../NotFound"));
 
 const tabs = [
   { to: "/admin", label: "Overview", end: true },
   { to: "/admin/users", label: "Users" },
+  { to: "/admin/funnel", label: "Funnel" },
   { to: "/admin/content", label: "Content" },
+  { to: "/admin/reports", label: "Reports" },
   { to: "/admin/comments", label: "Comments" },
   { to: "/admin/invites", label: "Invites" },
   { to: "/admin/ai", label: "AI usage" },
@@ -29,6 +34,12 @@ const tabs = [
 export default function Admin() {
   const { user } = useAuth();
   if (user?.role !== "admin") return <NotFound />;
+  return <Shell />;
+}
+
+function Shell() {
+  const overview = useAdminOverview();
+  const open = overview.data?.totals.reports_open ?? 0;
   return (
     <div>
       <nav className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-line pb-px" aria-label="Admin">
@@ -40,6 +51,11 @@ export default function Admin() {
             className={({ isActive }) => cn("-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm", isActive ? "border-accent text-fg" : "border-transparent text-muted hover:text-fg")}
           >
             {t.label}
+            {t.to === "/admin/reports" && open > 0 && (
+              <span className="ml-1.5 rounded-full bg-accent-strong px-1.5 py-px text-xs text-white" aria-label={`${open} open`}>
+                {open}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -50,6 +66,8 @@ export default function Admin() {
           <Route path="users/:id" element={<UserDetail />} />
           <Route path="content" element={<Content />} />
           <Route path="comments" element={<Comments />} />
+          <Route path="reports" element={<Reports />} />
+          <Route path="funnel" element={<Funnel />} />
           <Route path="invites" element={<Invites />} />
           <Route path="ai" element={<Usage />} />
           <Route path="audit" element={<Audit />} />
