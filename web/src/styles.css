@@ -17,6 +17,9 @@
   --warn: #fbbf24;
   --danger: #f87171;
   --code-bg: #0d1428;
+  /* Single-series chart marks (admin dashboard), checked against each
+     theme's card surface: lightness band, chroma and 3:1 contrast. */
+  --chart: #5f84ff;
   color-scheme: dark;
 }
 html.light {
@@ -32,6 +35,7 @@ html.light {
   --warn: #d97706;
   --danger: #dc2626;
   --code-bg: #f1f3fa;
+  --chart: #3b63f5;
   color-scheme: light;
 }
 
@@ -48,6 +52,7 @@ html.light {
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-code: var(--code-bg);
+  --color-chart: var(--chart);
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }

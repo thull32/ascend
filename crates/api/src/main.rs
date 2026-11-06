@@ -71,6 +71,18 @@ async fn main() -> anyhow::Result<()> {
     if args.iter().any(|a| matches!(a.as_str(), "--create-invite" | "--list-invites" | "--revoke-invite")) {
         return invites(&config, &args).await;
     }
+    // `ascend-api --set-role EMAIL admin|user`: how the first admin is made
+    // with a database connection (in production, `PUT /api/admin/roles`).
+    if let Some(i) = args.iter().position(|a| a == "--set-role") {
+        let (Some(email), Some(role)) = (args.get(i + 1), args.get(i + 2)) else {
+            anyhow::bail!("usage: ascend-api --set-role EMAIL admin|user");
+        };
+        let db = state::connect_db(&config).await?;
+        use ascend_core::services::admin::{Actor, set_role_by_email};
+        let account = set_role_by_email(&db, &Actor::Token, email, role).await?;
+        println!("{} is now {}", account.email, account.role);
+        return Ok(());
+    }
     let telemetry = telemetry::init(config.log_json, "ascend-api");
 
     tracing::info!(env = ?config.env, addr = %config.bind_addr, "booting ascend-api");

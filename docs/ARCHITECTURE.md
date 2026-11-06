@@ -107,6 +107,22 @@ deploy that changes a response's shape invalidates cached copies), and builds an
 
 See [ADR 0002](adr/0002-server-side-sessions.md).
 
+## Admin
+
+`/admin` in the SPA is a dashboard over `/api/admin` (`crates/api/src/routes/admin.rs`, logic in
+`crates/core/src/services/admin.rs`). One extractor, `Operator`, admits either a session whose account has
+the `admin` role (read from the database on every request, so a demotion is immediate) or the
+`ADMIN_TOKEN` bearer secret, which is how the first admin is made. It shows accounts, progress,
+scores, usage, sessions and content engagement, and acts on accounts (role, sign-out everywhere,
+password-reset link, deletion), comments and invites. It never returns learners' code, coach
+messages or interview transcripts. Every change is written to `admin_audit` in the same transaction
+as the change, with the actor; the log holds account UUIDs but no emails or comment text, and
+retention drops it after a year. Guard rails are in the service, not the UI: nobody can remove their
+own admin role, and admins cannot be deleted until demoted, so the last admin cannot lock everyone out.
+
+Content is read-only there: it is Markdown compiled into the binary and validated in CI, so it is
+changed through the repository.
+
 ## AI features
 
 `crates/core/src/ai` holds a small typed client for the Anthropic Messages API (non-streaming and SSE

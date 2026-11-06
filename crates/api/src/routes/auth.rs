@@ -188,7 +188,7 @@ fn count_email(kind: &'static str, sent: bool) {
         .add(1, &[ascend_core::metrics::kv("kind", kind), ascend_core::metrics::kv("outcome", outcome)]);
 }
 
-fn email_unavailable() -> ascend_core::AppError {
+pub(crate) fn email_unavailable() -> ascend_core::AppError {
     ascend_core::AppError::Unavailable {
         message: "email is not set up on this server yet, so passwords cannot be reset by email".into(),
         retry_after_secs: None,
@@ -213,6 +213,13 @@ async fn forgot_password(State(state): State<AppState>, AppJson(body): AppJson<F
     if let Some(throttled) = state.limiter.charge(&format!("reset:{email}"), RESET_PER_ADDRESS).await {
         return Ok(throttled);
     }
+    send_password_reset(&state, email);
+    Ok(Json(serde_json::json!({ "ok": true })).into_response())
+}
+
+/// Mails a reset link to the account with this address, if there is one, in
+/// the background. Also used by the admin dashboard.
+pub(crate) fn send_password_reset(state: &AppState, email: String) {
     let (auth, mailer, origin) = (state.auth.clone(), state.mailer.clone(), state.config.public_origin.clone());
     state.tasks.spawn(async move {
         match auth.start_password_reset(&email).await {
@@ -229,7 +236,6 @@ async fn forgot_password(State(state): State<AppState>, AppJson(body): AppJson<F
             Err(e) => tracing::error!(error = %e, "could not start a password reset"),
         }
     });
-    Ok(Json(serde_json::json!({ "ok": true })).into_response())
 }
 
 #[derive(serde::Deserialize)]

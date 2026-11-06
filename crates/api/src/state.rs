@@ -20,6 +20,7 @@ pub struct AppState {
     pub db: DatabaseConnection,
     pub curriculum: Arc<Curriculum>,
     pub auth: AuthService,
+    pub admin: AdminService,
     pub progress: ProgressService,
     pub quiz: QuizService,
     pub submissions: SubmissionService,
@@ -199,6 +200,7 @@ impl AppState {
                 None => AuthService::new(db.clone(), config.session_ttl, config.session_idle),
             }
             .invite_only(config.signups == ascend_core::config::Signups::Invite),
+            admin: AdminService::new(db.clone(), curriculum.clone()),
             progress: ProgressService::new(db.clone(), curriculum.clone()),
             quiz: QuizService::new(db.clone(), curriculum.clone()),
             submissions: SubmissionService::new(db.clone(), curriculum.clone(), grader),

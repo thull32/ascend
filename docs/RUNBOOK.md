@@ -137,11 +137,30 @@ instead of the learner.
 To add a host: run `railway domain <host> --service <svc>` (custom domains cannot be registered from
 `railway.ts`), add both records, then list the host in that service's `domains` in `railway.ts`.
 
+## Admin
+
+The admin dashboard is at `/admin` (a shield icon in the header) for accounts with the `admin` role:
+users and their progress, content usage, comment moderation, invites, AI usage and an audit log of
+every admin change. It deliberately does not show learners' code, coach conversations or interview
+transcripts (the privacy page says so).
+
+The production image has no shell, so make the first admin with the operator token:
+
+    T=$(railway variables --service ascend --json | jq -r .ADMIN_TOKEN)
+    curl -s -X PUT https://ascend.engineering/api/admin/roles -H "Authorization: Bearer $T" \
+      -H "x-requested-with: fetch" -H "content-type: application/json" \
+      -d '{"email": "you@example.com", "role": "admin"}'
+
+The role applies on the next request; no need to sign in again. From then on, admins promote and
+demote each other from a user's page. Nobody can remove their own admin role or delete their own
+account there, and an admin's account cannot be deleted until the role is removed. Locally,
+`ascend-api --set-role EMAIL admin|user` does the same with a database connection.
+
 ## Invites
 
 Sign-up is invite-only in production (`SIGNUPS=invite` in `.railway/railway.ts`). Existing accounts
-are unaffected. The production image has no shell, so `railway ssh` cannot run commands in it.
-Instead, manage invites through the operator API with `ADMIN_TOKEN`, a Railway secret:
+are unaffected. Admins manage invites at `/admin/invites`. Without a session, use the operator API
+with `ADMIN_TOKEN`, a Railway secret:
 
     T=$(railway variables --service ascend --json | jq -r .ADMIN_TOKEN)
     A=https://ascend.engineering/api/admin/invites
@@ -160,7 +179,8 @@ With a database connection, `ascend-api --create-invite [--uses N] [--days D] [-
 `--list-invites` and `--revoke-invite <id>` do the same.
 
 To rotate the token, run `railway variables --service ascend --set "ADMIN_TOKEN=$(openssl rand -hex 32)"`.
-Without `ADMIN_TOKEN`, the operator API answers 404.
+Without `ADMIN_TOKEN`, bearer requests to `/api/admin` answer 404; the dashboard still works for
+admins with a session.
 
 To run the end-to-end suites against production, create an invite with several uses and one day,
 pass the code as `E2E_INVITE`, and revoke the invite afterwards.

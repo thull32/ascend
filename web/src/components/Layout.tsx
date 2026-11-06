@@ -1,4 +1,4 @@
-import { BookOpen, Code2, Headphones, LogOut, Map, MessageSquare, Mic, Moon, Search, Sun, User as UserIcon, Menu, X, LayoutDashboard, Play } from "lucide-react";
+import { BookOpen, Code2, Headphones, LogOut, Map, MessageSquare, Mic, Moon, Search, Shield, Sun, User as UserIcon, Menu, X, LayoutDashboard, Play } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { api } from "../lib/api";
@@ -84,6 +84,11 @@ export function Layout({ children }: { children: ReactNode }) {
                 <Link to="/dashboard" className="hidden rounded-md p-2 text-muted hover:bg-elev-2 hover:text-fg sm:block" aria-label="Dashboard">
                   <LayoutDashboard className="h-4 w-4" />
                 </Link>
+                {user.role === "admin" && (
+                  <Link to="/admin" className="rounded-md p-2 text-muted hover:bg-elev-2 hover:text-fg" aria-label="Admin" title="Admin">
+                    <Shield className="h-4 w-4" />
+                  </Link>
+                )}
                 <Link to="/profile" className="rounded-md p-2 text-muted hover:bg-elev-2 hover:text-fg" aria-label="Profile">
                   <UserIcon className="h-4 w-4" />
                 </Link>

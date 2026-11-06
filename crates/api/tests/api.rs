@@ -673,6 +673,151 @@ async fn the_operator_api_manages_invites_with_the_admin_token() {
 }
 
 #[tokio::test]
+async fn admins_manage_learners_and_every_change_is_audited() {
+    let Some(app) = test_app().await else { return };
+    let (admin, admin_user) = app.register().await;
+    let (learner, learner_user) = app.register().await;
+    let admin_id = admin_user["id"].as_str().unwrap().to_string();
+    let learner_id = learner_user["id"].as_str().unwrap().to_string();
+    let learner_email = learner_user["email"].as_str().unwrap().to_string();
+
+    // Anonymous callers are asked to sign in; learners are refused.
+    assert_eq!(app.call("GET", "/api/admin/overview", None, None, false).await.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(app.call("GET", "/api/admin/overview", None, Some(&admin), false).await.status, StatusCode::FORBIDDEN);
+
+    // The first admin is made with the operator token.
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/api/admin/roles")
+        .header("x-requested-with", "fetch")
+        .header(header::AUTHORIZATION, "Bearer an-admin-token-that-is-long-enough-123")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(json!({"email": admin_user["email"], "role": "admin"}).to_string()))
+        .unwrap();
+    let res = app.router.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let me = app.call("GET", "/api/auth/me", None, Some(&admin), false).await;
+    assert_eq!(me.body["role"], "admin", "the role applies to the existing session");
+
+    let r = app.call("GET", "/api/admin/overview", None, Some(&admin), false).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    assert!(r.body["totals"]["users"].as_i64().unwrap() >= 2);
+    assert_eq!(r.body["daily"].as_array().unwrap().len(), 30);
+
+    // The learner reads a lesson and comments on it.
+    let slug = "basics/intro/hello";
+    let done = app
+        .call(
+            "PUT",
+            &format!("/api/progress/lessons/{slug}"),
+            Some(json!({"status": "completed"})),
+            Some(&learner),
+            true,
+        )
+        .await;
+    assert_eq!(done.status, StatusCode::OK, "{:?}", done.body);
+    let c = app
+        .call(
+            "POST",
+            "/api/comments",
+            Some(json!({"target_kind": "lesson", "target_slug": slug, "body": "secret words"})),
+            Some(&learner),
+            true,
+        )
+        .await;
+    let comment_id = c.body["id"].as_str().unwrap().to_string();
+
+    // Search finds the learner (and pattern characters are literal).
+    let r = app
+        .call("GET", &format!("/api/admin/users?q={learner_email}&sort=last_active"), None, Some(&admin), false)
+        .await;
+    assert_eq!((r.body["total"].as_i64(), r.body["items"][0]["id"].as_str()), (Some(1), Some(learner_id.as_str())));
+    assert_eq!(r.body["items"][0]["lessons_completed"], 1);
+    let r = app.call("GET", "/api/admin/users?q=%25&limit=1", None, Some(&admin), false).await;
+    assert_eq!(r.body["total"], 0, "a literal % matches no email");
+    assert_eq!(
+        app.call("GET", "/api/admin/users?role=root", None, Some(&admin), false).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+
+    let r = app.call("GET", &format!("/api/admin/users/{learner_id}"), None, Some(&admin), false).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    assert_eq!(r.body["progress"]["lessons_completed"], 1);
+    assert_eq!(r.body["counts"]["comments"], 1);
+    assert!(!r.body.to_string().contains("password_hash") && !r.body.to_string().contains("argon2"));
+
+    let r = app.call("GET", "/api/admin/content", None, Some(&admin), false).await;
+    let lesson = &r.body["tracks"][0]["modules"][0]["lessons"][0];
+    // Other tests share the database, so these are lower bounds.
+    assert_eq!(lesson["slug"], slug);
+    assert!(lesson["completed"].as_i64() >= Some(1) && lesson["comments"].as_i64() >= Some(1), "{lesson}");
+
+    // Guard rails: no removing your own role, no deleting yourself or another admin.
+    let r = app
+        .call("PUT", &format!("/api/admin/users/{admin_id}/role"), Some(json!({"role": "user"})), Some(&admin), true)
+        .await;
+    assert_eq!(r.status, StatusCode::CONFLICT);
+    assert_eq!(
+        app.call("DELETE", &format!("/api/admin/users/{admin_id}"), None, Some(&admin), true).await.status,
+        StatusCode::CONFLICT
+    );
+    let r = app
+        .call("PUT", &format!("/api/admin/users/{learner_id}/role"), Some(json!({"role": "owner"})), Some(&admin), true)
+        .await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Moderation, sign-out and deletion.
+    let r = app.call("DELETE", &format!("/api/admin/comments/{comment_id}"), None, Some(&admin), true).await;
+    assert_eq!(r.status, StatusCode::OK);
+    let r = app.call("GET", "/api/admin/comments?include_deleted=true&limit=200", None, Some(&admin), false).await;
+    let row = r.body["items"].as_array().unwrap().iter().find(|c| c["id"] == comment_id.as_str()).unwrap().clone();
+    assert_eq!((row["deleted"].as_bool(), row["body"].as_str()), (Some(true), Some("")));
+
+    let r =
+        app.call("POST", &format!("/api/admin/users/{learner_id}/sign-out"), Some(json!({})), Some(&admin), true).await;
+    assert_eq!(r.body["sessions"], 1);
+    assert_eq!(app.call("GET", "/api/auth/me", None, Some(&learner), false).await.status, StatusCode::UNAUTHORIZED);
+
+    assert_eq!(
+        app.call("DELETE", &format!("/api/admin/users/{learner_id}"), None, Some(&admin), true).await.status,
+        StatusCode::OK
+    );
+    assert_eq!(
+        app.call("GET", &format!("/api/admin/users/{learner_id}"), None, Some(&admin), false).await.status,
+        StatusCode::NOT_FOUND
+    );
+
+    // The log says who did what, and keeps no email or comment text.
+    let r = app.call("GET", "/api/admin/audit?limit=200", None, Some(&admin), false).await;
+    let mine: Vec<&Value> = r.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["target_id"] == learner_id.as_str() || e["target_id"] == admin_id.as_str())
+        .collect();
+    let actions: Vec<(&str, &str)> =
+        mine.iter().map(|e| (e["action"].as_str().unwrap(), e["actor_label"].as_str().unwrap())).rev().collect();
+    let by_admin = admin_user["email"].as_str().unwrap();
+    assert_eq!(
+        actions,
+        [
+            ("set_role", "operator token"),
+            ("delete_comment", by_admin),
+            ("sign_out_everywhere", by_admin),
+            ("delete_user", by_admin)
+        ]
+    );
+    let text = serde_json::to_string(&mine).unwrap();
+    assert!(!text.contains(&learner_email) && !text.contains("secret words"), "{text}");
+
+    assert_eq!(
+        app.call("GET", "/api/admin/ai-usage?days=0", None, Some(&admin), false).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(app.call("GET", "/api/admin/ai-usage", None, Some(&admin), false).await.body["days"], 30);
+}
+
+#[tokio::test]
 async fn a_new_podcast_feed_url_revokes_the_old_one() {
     let Some(app) = test_app().await else { return };
     let (_, user) = app.register().await;

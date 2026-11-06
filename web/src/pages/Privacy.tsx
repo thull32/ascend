@@ -6,7 +6,7 @@ import { useFeatures } from "../lib/queries";
 // statement here is checked against the code: when the code changes (a new
 // third party, a new table, a retention period), change this page with it.
 // Retention periods are enforced by crates/core/src/services/retention.rs.
-export const PRIVACY_UPDATED = "11 October 2026";
+export const PRIVACY_UPDATED = "5 November 2026";
 
 export default function Privacy() {
   const features = useFeatures();
@@ -47,6 +47,15 @@ export default function Privacy() {
         </li>
       </ul>
       <p>There is no advertising, no analytics or tracking script, and no data is sold.</p>
+
+      <h2>Who at Ascend can see it</h2>
+      <p>
+        The people who run Ascend have an admin view, used to run the service, moderate discussions and help you when you ask. It shows your
+        account details, your progress, quiz and interview scores, whether your graded attempts passed, your AI usage counts and your sign-in
+        sessions. It does not show the code you submit, your conversations with the AI coach or your interview transcripts. Admins can sign
+        you out, send you a password-reset link, remove a comment or delete an account; each of those is recorded in an audit log, kept for a
+        year, which holds no email addresses or comment text.
+      </p>
 
       <h2>Who else processes it</h2>
       <ul>
@@ -93,6 +102,7 @@ export default function Privacy() {
         <li>Mock interviews: deleted a year after they took place.</li>
         <li>AI usage counters: 90 days. Activity days: 400 days (streaks look back that far).</li>
         <li>Daily review episodes and their marks: 30 days. The review schedule itself is kept with your progress.</li>
+        <li>Admin audit log entries: one year.</li>
         <li>Sessions: signed out after 14 days unused, and after 30 days in any case. Recognised browsers: forgotten after a year unused.</li>
         <li>Email links: expire after one hour (password reset) or seven days (address confirmation), and are deleted when used or expired.</li>
         <li>Everything else, such as your profile, progress and quiz answers: until you delete your account.</li>

@@ -31,6 +31,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const Playground = lazy(() => import("./pages/Playground"));
 const VizGallery = lazy(() => import("./pages/VizGallery"));
 const Listen = lazy(() => import("./pages/Listen"));
+const Admin = lazy(() => import("./pages/admin"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
@@ -73,6 +74,7 @@ export function App() {
           <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
           <Route path="/playground" element={<Playground />} />
           <Route path="/viz" element={<VizGallery />} />
+          <Route path="/admin/*" element={<RequireAuth><Admin /></RequireAuth>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

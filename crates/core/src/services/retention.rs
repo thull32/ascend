@@ -10,6 +10,7 @@
 //! | Activity days | 400 days (streaks look back that far) |
 //! | Daily review episodes | 30 days (`ReviewService::expire`, run from the same hourly loop) |
 //! | Recognised browsers | 365 days after last use |
+//! | Admin audit log | 365 days |
 //!
 //! Sessions, email links and rate-limit keys have their own sweeps.
 //!
@@ -37,6 +38,7 @@ pub struct Policy {
     pub ai_usage_days: i32,
     pub activity_days: i32,
     pub devices_days: i32,
+    pub admin_audit_days: i32,
 }
 
 impl Default for Policy {
@@ -48,6 +50,7 @@ impl Default for Policy {
             ai_usage_days: 90,
             activity_days: 400,
             devices_days: 365,
+            admin_audit_days: 365,
         }
     }
 }
@@ -62,6 +65,7 @@ pub struct Report {
     pub ai_usage: u64,
     pub activity_days: u64,
     pub devices: u64,
+    pub admin_audit: u64,
 }
 
 /// One kind of row to expire: a DELETE that removes at most `$2` rows older
@@ -111,6 +115,11 @@ const DEVICES: Rule = Rule {
     name: "login_devices",
     sql: "DELETE FROM login_devices WHERE token_hash IN ( \
             SELECT token_hash FROM login_devices WHERE last_used_at < now() - make_interval(days => $1) LIMIT $2)",
+};
+const ADMIN_AUDIT: Rule = Rule {
+    name: "admin_audit",
+    sql: "DELETE FROM admin_audit WHERE id IN ( \
+            SELECT id FROM admin_audit WHERE created_at < now() - make_interval(days => $1) LIMIT $2)",
 };
 
 /// Whether the batch ran or another replica holds the retention lock.
@@ -173,13 +182,14 @@ async fn expire(db: &DatabaseConnection, rule: &Rule, days: i32) -> AppResult<Op
 /// deleted, when another replica is running one.
 pub async fn run(db: &DatabaseConnection, policy: Policy) -> AppResult<Report> {
     let mut report = Report { ran: true, ..Report::default() };
-    let rules: [(&Rule, i32, &mut u64); 6] = [
+    let rules: [(&Rule, i32, &mut u64); 7] = [
         (&SUBMISSIONS, policy.submissions_days, &mut report.submissions),
         (&CONVERSATIONS, policy.conversations_days, &mut report.conversations),
         (&INTERVIEWS, policy.interviews_days, &mut report.interviews),
         (&AI_USAGE, policy.ai_usage_days, &mut report.ai_usage),
         (&ACTIVITY, policy.activity_days, &mut report.activity_days),
         (&DEVICES, policy.devices_days, &mut report.devices),
+        (&ADMIN_AUDIT, policy.admin_audit_days, &mut report.admin_audit),
     ];
     let mut any = false;
     for (rule, days, out) in rules {
