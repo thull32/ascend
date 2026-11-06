@@ -15,7 +15,7 @@
 # a content-only change rebuilds in about a minute.
 
 # ---------- web ----------
-FROM node:24-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS web
+FROM node:24-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS web
 WORKDIR /app/web
 RUN corepack enable
 # The workspace file carries pnpm settings the lockfile records (overrides),
@@ -29,7 +29,7 @@ COPY crates/grader/harness /app/crates/grader/harness
 RUN pnpm build
 
 # ---------- rust dependency plan ----------
-FROM lukemathwalker/cargo-chef:latest-rust-1.98-slim-trixie@sha256:38dfdbf4fda95c516f873f33032e490baa988b75f7d83c7d12f788f770785b36 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.99-slim-trixie@sha256:f122e3c240d1c05668b07179cf6fa07647db2a79a110f4bb8a91d75f90d5b8e4 AS chef
 WORKDIR /app
 
 # ---------- grader runtimes ----------
@@ -74,7 +74,7 @@ COPY --from=runtimes /opt/ascend/grader /opt/ascend/grader
 RUN /ascend-api --prepare-grader /opt/ascend/grader
 
 # ---------- runtime ----------
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:54df941ed0d06a1bd95ef5e0ce391fd8d9f94b64782dc9a60062727849ee3f97 AS runtime
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:08476c244888bfb425bae1ae4dd7c17f093e972aab8426883d97f3c6f280f7c1 AS runtime
 COPY --from=builder /ascend-api /usr/local/bin/ascend-api
 COPY --from=builder /opt/ascend/grader /opt/ascend/grader
 ENV APP_ENV=production \
