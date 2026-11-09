@@ -284,8 +284,20 @@ function Actions({ d }: { d: Detail }) {
   const role = useAdminAction((r: "user" | "admin") => adminApi.setRole(a.id, r));
   const signOut = useAdminAction(() => adminApi.signOut(a.id));
   const reset = useAdminAction(() => adminApi.passwordReset(a.id));
+  const resetLink = useAdminAction(() => adminApi.passwordResetLink(a.id));
+  const [link, setLink] = useState<string | null>(null);
   const remove = useAdminAction(() => adminApi.deleteUser(a.id));
-  const busy = role.isPending || signOut.isPending || reset.isPending || remove.isPending;
+  const busy = role.isPending || signOut.isPending || reset.isPending || resetLink.isPending || remove.isPending;
+  const takeLink = () =>
+    confirm(`Make a password reset link for ${a.email}? Anyone with it can set their password for the next hour, so send it only to them. Any earlier reset link stops working.`) &&
+    resetLink.mutate(undefined, {
+      onSuccess: (r) => {
+        setLink(r.url);
+        setNote(null);
+        void navigator.clipboard?.writeText(r.url).catch(() => {});
+      },
+      onError: fail,
+    });
 
   return (
     <Card>
@@ -303,6 +315,15 @@ function Actions({ d }: { d: Detail }) {
         <Button variant="secondary" disabled={busy || !features.data?.email} title={features.data?.email ? undefined : "Email is not set up on this deployment"} onClick={() => reset.mutate(undefined, { onSuccess: done(`Reset link sent to ${a.email}.`), onError: fail })}>
           Send password reset link
         </Button>
+        <Button variant="secondary" disabled={busy} data-testid="reset-link" onClick={takeLink}>
+          Copy a password reset link
+        </Button>
+        {link && (
+          <div className="rounded-lg border border-border p-3 text-xs">
+            <p>Copied. Send it to {a.email} yourself; it works once, for an hour.</p>
+            <input readOnly className={cn(inputClass, "mt-2 w-full font-mono")} value={link} onFocus={(e) => e.currentTarget.select()} aria-label="Password reset link" />
+          </div>
+        )}
         <Button variant="secondary" disabled={busy || d.sessions.length === 0} onClick={() => confirm(`Sign ${a.email} out of every device?`) && signOut.mutate(undefined, { onSuccess: (r) => setNote(`Ended ${r.sessions} session(s).`), onError: fail })}>
           Sign out everywhere
         </Button>

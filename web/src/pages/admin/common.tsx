@@ -73,6 +73,7 @@ const ACTIONS: Record<string, string> = {
   sign_out_everywhere: "Signed out everywhere",
   delete_user: "Deleted account",
   send_password_reset: "Sent password reset",
+  copy_password_reset_link: "Took a password reset link",
   delete_comment: "Removed comment",
   create_invite: "Created invite",
   revoke_invite: "Revoked invite",

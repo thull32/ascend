@@ -795,6 +795,36 @@ async fn admins_manage_learners_and_every_change_is_audited() {
     assert_eq!(r.body["sessions"], 1);
     assert_eq!(app.call("GET", "/api/auth/me", None, Some(&learner), false).await.status, StatusCode::UNAUTHORIZED);
 
+    // A reset link to hand over works without email, once.
+    let r = app
+        .call(
+            "POST",
+            &format!("/api/admin/users/{learner_id}/password-reset-link"),
+            Some(json!({})),
+            Some(&admin),
+            true,
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    let url = r.body["url"].as_str().unwrap();
+    let token = url.split_once("#token=").expect("link carries a token").1;
+    let body = json!({"token": token, "password": "a brand new passphrase 42"});
+    assert_eq!(
+        app.call("POST", "/api/auth/password/reset", Some(body.clone()), None, true).await.status,
+        StatusCode::OK
+    );
+    assert_ne!(app.call("POST", "/api/auth/password/reset", Some(body), None, true).await.status, StatusCode::OK);
+    let r = app
+        .call(
+            "POST",
+            &format!("/api/admin/users/{}/password-reset-link", uuid::Uuid::now_v7()),
+            Some(json!({})),
+            Some(&admin),
+            true,
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND);
+
     assert_eq!(
         app.call("DELETE", &format!("/api/admin/users/{learner_id}"), None, Some(&admin), true).await.status,
         StatusCode::OK
@@ -821,6 +851,7 @@ async fn admins_manage_learners_and_every_change_is_audited() {
             ("set_role", "operator token"),
             ("delete_comment", by_admin),
             ("sign_out_everywhere", by_admin),
+            ("copy_password_reset_link", by_admin),
             ("delete_user", by_admin)
         ]
     );

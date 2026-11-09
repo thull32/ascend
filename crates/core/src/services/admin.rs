@@ -758,6 +758,15 @@ impl AdminService {
         Ok(user.email)
     }
 
+    /// Records that an admin took a password-reset link to hand over
+    /// themselves (when email is not set up, or the learner cannot get it),
+    /// and returns the address to issue it for.
+    pub async fn password_reset_link_requested(&self, actor: &Actor, id: Uuid) -> AppResult<String> {
+        let user = Users::find_by_id(id).one(&self.db).await?.ok_or(AppError::NotFound("user"))?;
+        record(&self.db, actor, "copy_password_reset_link", Some(id), serde_json::json!({})).await?;
+        Ok(user.email)
+    }
+
     pub async fn comments(&self, filter: CommentFilter, page: Page) -> AppResult<Paged<CommentRow>> {
         let (offset, limit) = page.clamped();
         let total: i64 = self

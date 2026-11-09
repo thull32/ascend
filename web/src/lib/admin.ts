@@ -265,6 +265,7 @@ export const adminApi = {
   setRole: (id: string, role: "user" | "admin") => api.put<Account>(`/admin/users/${id}/role`, { role }),
   signOut: (id: string) => api.post<{ sessions: number }>(`/admin/users/${id}/sign-out`),
   passwordReset: (id: string) => api.post<{ ok: boolean }>(`/admin/users/${id}/password-reset`),
+  passwordResetLink: (id: string) => api.post<{ url: string; expires_in_minutes: number }>(`/admin/users/${id}/password-reset-link`),
   deleteUser: (id: string) => api.delete<{ ok: boolean }>(`/admin/users/${id}`),
   deleteComment: (id: string) => api.delete<{ ok: boolean }>(`/admin/comments/${id}`),
   createInvite: (body: { uses: number; days?: number; note: string }) => api.post<{ link: string }>("/admin/invites", body),

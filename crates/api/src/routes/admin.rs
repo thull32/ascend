@@ -41,6 +41,7 @@ pub fn router() -> Router<AppState> {
         .route("/admin/users/{id}/role", put(set_role))
         .route("/admin/users/{id}/sign-out", post(sign_out))
         .route("/admin/users/{id}/password-reset", post(password_reset))
+        .route("/admin/users/{id}/password-reset-link", post(password_reset_link))
         .route("/admin/roles", put(set_role_by_email))
         .route("/admin/content", get(content))
         .route("/admin/comments", get(comments))
@@ -157,6 +158,19 @@ async fn password_reset(
     let email = state.admin.password_reset_requested(&actor, id).await?;
     super::auth::send_password_reset(&state, email);
     Ok(Json(json!({ "ok": true })))
+}
+
+/// A single-use reset link for the admin to pass on (works without email).
+/// It replaces any earlier reset link for the account and lasts an hour.
+async fn password_reset_link(
+    Operator(actor): Operator,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Value>> {
+    let email = state.admin.password_reset_link_requested(&actor, id).await?;
+    let link = state.auth.start_password_reset(&email).await?.ok_or(ascend_core::AppError::NotFound("user"))?;
+    let url = format!("{}/reset-password#token={}", state.config.public_origin, link.token);
+    Ok(Json(json!({ "url": url, "expires_in_minutes": 60 })))
 }
 
 async fn delete_user(
