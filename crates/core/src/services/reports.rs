@@ -59,6 +59,20 @@ pub struct ReportRow {
     pub closed_at: Option<DateTime<Utc>>,
     pub closed_by: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// For a coding problem, the reporter's latest attempt when they
+    /// reported it (its code opens through the audited admin endpoint).
+    pub attempt: Option<ReportAttempt>,
+}
+
+/// The attempt attached to a report, without its code.
+#[derive(Debug, Serialize)]
+pub struct ReportAttempt {
+    pub id: Uuid,
+    pub language: String,
+    pub passed: bool,
+    pub passed_count: i16,
+    pub total_count: i16,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, FromQueryResult)]
@@ -75,12 +89,21 @@ struct Row {
     closed_at: Option<DateTime<Utc>>,
     closed_by: Option<String>,
     created_at: DateTime<Utc>,
+    attempt_id: Option<Uuid>,
+    attempt_language: Option<String>,
+    attempt_passed: Option<bool>,
+    attempt_passed_count: Option<i16>,
+    attempt_total_count: Option<i16>,
+    attempt_created_at: Option<DateTime<Utc>>,
 }
 
 const SELECT: &str = "SELECT r.id, r.user_id AS reporter_id, u.display_name AS reporter_name, \
        u.email AS reporter_email, r.target_kind, r.target_slug, r.category, r.message, r.status, r.closed_at, \
-       c.email AS closed_by, r.created_at \
-     FROM content_reports r LEFT JOIN users u ON u.id = r.user_id LEFT JOIN users c ON c.id = r.closed_by";
+       c.email AS closed_by, r.created_at, s.id AS attempt_id, s.language AS attempt_language, \
+       s.passed AS attempt_passed, s.passed_count AS attempt_passed_count, s.total_count AS attempt_total_count, \
+       s.created_at AS attempt_created_at \
+     FROM content_reports r LEFT JOIN users u ON u.id = r.user_id LEFT JOIN users c ON c.id = r.closed_by \
+       LEFT JOIN submissions s ON s.id = r.submission_id";
 
 #[derive(Clone)]
 pub struct ReportService {
@@ -102,7 +125,19 @@ impl ReportService {
     }
 
     fn row(&self, r: Row) -> ReportRow {
+        let attempt = match (r.attempt_id, r.attempt_language, r.attempt_passed, r.attempt_passed_count) {
+            (Some(id), Some(language), Some(passed), Some(passed_count)) => Some(ReportAttempt {
+                id,
+                language,
+                passed,
+                passed_count,
+                total_count: r.attempt_total_count.unwrap_or_default(),
+                created_at: r.attempt_created_at.unwrap_or(r.created_at),
+            }),
+            _ => None,
+        };
         ReportRow {
+            attempt,
             target_title: self.title(&r.target_kind, &r.target_slug),
             id: r.id,
             reporter_id: r.reporter_id,
@@ -146,8 +181,11 @@ impl ReportService {
         let id = Uuid::now_v7();
         self.db
             .execute_raw(stmt(
-                "INSERT INTO content_reports (id, user_id, target_kind, target_slug, category, message) \
-                 VALUES ($1, $2, $3, $4, $5, $6)",
+                // A report on a coding problem keeps the reporter's latest attempt at it.
+                "INSERT INTO content_reports (id, user_id, target_kind, target_slug, category, message, submission_id) \
+                 VALUES ($1, $2, $3, $4, $5, $6, \
+                   CASE WHEN $3 = 'problem' THEN (SELECT s.id FROM submissions s WHERE s.user_id = $2 \
+                     AND s.target_kind = 'problem' AND s.target_slug = $4 ORDER BY s.created_at DESC LIMIT 1) END)",
                 [
                     id.into(),
                     user_id.into(),

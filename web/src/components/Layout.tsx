@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { markPrivacySeen, PRIVACY_CHANGE, PRIVACY_UPDATED, privacyChangeUnseen } from "../lib/privacy";
 import { useFeatures } from "../lib/queries";
 import { applyTheme, cn, loadTheme } from "../lib/utils";
 import { SearchDialog } from "./SearchDialog";
@@ -122,6 +123,7 @@ export function Layout({ children }: { children: ReactNode }) {
         )}
       </header>
       {!immersive && <VerifyBanner />}
+      {!immersive && <PrivacyBanner />}
       <main className={cn("mx-auto w-full max-w-7xl flex-1 px-4 py-6", immersive && "max-w-none px-0 py-0")}>{children}</main>
       {!immersive && (
         <footer className="border-t border-line py-6 text-center text-xs text-muted">
@@ -191,6 +193,42 @@ function VerifyBanner() {
             setDismissed(true);
           }}
         >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Tells learners who joined before the privacy page last changed what
+ *  changed. Gone once they open the page or dismiss it (per browser). */
+function PrivacyBanner() {
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  const [hidden, setHidden] = useState(false);
+  const unseen = !!user && !hidden && privacyChangeUnseen(user);
+  const onPage = pathname === "/privacy";
+  useEffect(() => {
+    if (user && unseen && onPage) {
+      markPrivacySeen(user.id);
+      setHidden(true);
+    }
+  }, [user, unseen, onPage]);
+  if (!user || !unseen || onPage) return null;
+  const close = () => {
+    markPrivacySeen(user.id);
+    setHidden(true);
+  };
+  return (
+    <div className="border-b border-line bg-elev" data-testid="privacy-banner" role="status">
+      <div className="mx-auto flex max-w-7xl items-start gap-3 px-4 py-2 text-sm">
+        <span>
+          <strong>Privacy update, {PRIVACY_UPDATED}:</strong> {PRIVACY_CHANGE}{" "}
+          <Link className="text-accent" to="/privacy" onClick={close}>
+            Read the privacy page
+          </Link>
+        </span>
+        <button className="ml-auto mt-0.5 text-muted hover:text-fg" aria-label="Dismiss" onClick={close}>
           <X className="h-4 w-4" />
         </button>
       </div>

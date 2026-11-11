@@ -117,7 +117,9 @@ scores, usage, sessions and content engagement, and acts on accounts (role, sign
 password-reset link, deletion), comments and invites. It never returns coach messages or interview
 transcripts, and never lists submitted code: `POST /api/admin/submissions/{id}/code` returns one
 attempt and audits the opening (a POST so a refetch cannot open it silently). Learners read their
-own attempts with `GET /api/submissions/{target}` (the editor's "Your past attempts"). Every change is written to `admin_audit` in the same transaction
+own attempts with `GET /api/submissions/{target}` (the editor's "Your past attempts"; with no draft in
+the browser, the editor starts from the latest one). A report on a coding problem stores the reporter's
+latest attempt (`content_reports.submission_id`, m0019). Every change is written to `admin_audit` in the same transaction
 as the change, with the actor; the log holds account UUIDs but no emails or comment text, and
 retention drops it after a year. Guard rails are in the service, not the UI: nobody can remove their
 own admin role, and admins cannot be deleted until demoted, so the last admin cannot lock everyone out.

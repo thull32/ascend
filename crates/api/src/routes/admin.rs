@@ -178,8 +178,8 @@ async fn password_reset_link(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
-    let email = state.admin.password_reset_link_requested(&actor, id).await?;
-    let link = state.auth.start_password_reset(&email).await?.ok_or(ascend_core::AppError::NotFound("user"))?;
+    state.admin.password_reset_link_requested(&actor, id).await?;
+    let link = state.auth.handed_password_reset(id).await?;
     let url = format!("{}/reset-password#token={}", state.config.public_origin, link.token);
     Ok(Json(json!({ "url": url, "expires_in_minutes": 60 })))
 }

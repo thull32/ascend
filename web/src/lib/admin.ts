@@ -142,6 +142,8 @@ export interface ReportRow {
   closed_at: string | null;
   closed_by: string | null;
   created_at: string;
+  /** A coding problem's report: the reporter's latest attempt, without code. */
+  attempt: { id: string; language: string; passed: boolean; passed_count: number; total_count: number; created_at: string } | null;
 }
 
 export const reportCategoryLabel: Record<ReportCategory, string> = {

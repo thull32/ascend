@@ -841,10 +841,9 @@ async fn admins_manage_learners_and_every_change_is_audited() {
     let url = r.body["url"].as_str().unwrap();
     let token = url.split_once("#token=").expect("link carries a token").1;
     let body = json!({"token": token, "password": "a brand new passphrase 42"});
-    assert_eq!(
-        app.call("POST", "/api/auth/password/reset", Some(body.clone()), None, true).await.status,
-        StatusCode::OK
-    );
+    let used = app.call("POST", "/api/auth/password/reset", Some(body.clone()), None, true).await;
+    assert_eq!(used.status, StatusCode::OK, "{}", used.body);
+    assert_eq!(used.body["email_verified"], false, "a handed-over link does not prove the address");
     assert_ne!(app.call("POST", "/api/auth/password/reset", Some(body), None, true).await.status, StatusCode::OK);
     let r = app
         .call(
@@ -955,6 +954,7 @@ async fn reports_funnel_invite_attribution_and_the_weekly_digest() {
         (row["target_title"].as_str(), row["reporter_email"].as_str()),
         (Some("Hello"), Some(learner_email.as_str()))
     );
+    assert!(row["attempt"].is_null(), "lesson reports carry no attempt");
     assert_eq!(
         app.call("GET", "/api/admin/reports?status=later", None, Some(&admin), false).await.status,
         StatusCode::UNPROCESSABLE_ENTITY
@@ -987,6 +987,32 @@ async fn reports_funnel_invite_attribution_and_the_weekly_digest() {
         (Some("set_report_status"), Some("resolved"))
     );
     assert!(!entry.to_string().contains("private detail"), "the log never holds the report text");
+
+    // A report on a coding problem carries the reporter's latest attempt.
+    let attempt = uuid::Uuid::now_v7();
+    app.db
+        .execute_raw(Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            "INSERT INTO submissions (id, user_id, target_kind, target_slug, language, code, passed, passed_count, \
+               total_count, results) VALUES ($1, $2, 'problem', 'add-two', 'python', 'def add_two(a, b): return 4', \
+               false, 1, 2, '[]')",
+            [attempt.into(), uuid::Uuid::parse_str(&learner_id).unwrap().into()],
+        ))
+        .await
+        .unwrap();
+    let on_problem = json!({"target_kind": "problem", "target_slug": "add-two", "category": "broken",
+                            "message": "My answer is right but test 2 says otherwise"});
+    let r = report(on_problem, Some(&learner)).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    let problem_report = r.body["id"].as_str().unwrap().to_string();
+    let r = app.call("GET", "/api/admin/reports?status=open&limit=200", None, Some(&admin), false).await;
+    let row = r.body["items"].as_array().unwrap().iter().find(|x| x["id"] == problem_report.as_str()).unwrap().clone();
+    assert_eq!(row["attempt"]["id"], attempt.to_string());
+    assert_eq!((row["attempt"]["passed_count"].as_i64(), row["attempt"]["total_count"].as_i64()), (Some(1), Some(2)));
+    assert!(!row.to_string().contains("return 4"), "the queue never holds code");
+    let r =
+        app.call("POST", &format!("/api/admin/submissions/{attempt}/code"), Some(json!({})), Some(&admin), true).await;
+    assert_eq!(r.body["code"], "def add_two(a, b): return 4");
 
     // The funnel: finishing the only lesson of a module finishes the module.
     let done = app

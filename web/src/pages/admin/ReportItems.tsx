@@ -1,7 +1,38 @@
+import { useState } from "react";
 import { Link } from "react-router";
-import { Badge, Button } from "../../components/ui";
+import { Badge, Button, ErrorBox } from "../../components/ui";
 import { adminApi, fmtDateTime, reportCategoryLabel, targetHref, useAdminAction, type ReportRow, type ReportStatus } from "../../lib/admin";
 import { cn, timeAgo } from "../../lib/utils";
+
+/** The reporter's attempt; the code is fetched, and audited, only when opened. */
+function Attempt({ a }: { a: NonNullable<ReportRow["attempt"]> }) {
+  const open = useAdminAction(() => adminApi.submissionCode(a.id));
+  const [shown, setShown] = useState(false);
+  const toggle = () => {
+    if (shown) return setShown(false);
+    if (open.data) return setShown(true);
+    open.mutate(undefined, { onSuccess: () => setShown(true) });
+  };
+  return (
+    <div className="mt-3 rounded-lg border border-line text-xs">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5">
+        <span className="text-muted">Their latest attempt:</span>
+        <span className={cn("font-medium tabular-nums", a.passed ? "text-success" : "text-warn")}>
+          {a.passed ? "passed" : "failed"} {a.passed_count}/{a.total_count}
+        </span>
+        <span className="text-muted">{a.language}</span>
+        <span className="text-muted" title={fmtDateTime(a.created_at)}>
+          {timeAgo(a.created_at)}
+        </span>
+        <Button variant="ghost" className="ml-auto px-2 py-0.5 text-xs" disabled={open.isPending} onClick={toggle} aria-expanded={shown} title="Each opening is recorded in the audit log">
+          {shown ? "Hide code" : open.isPending ? "Opening…" : "View code"}
+        </Button>
+      </div>
+      {open.error ? <ErrorBox error={open.error} className="m-2" /> : null}
+      {shown && <pre className="max-h-80 overflow-auto border-t border-line bg-code p-2.5 font-mono leading-relaxed">{open.data?.code}</pre>}
+    </div>
+  );
+}
 
 /** Problem reports as cards, with the actions to close or reopen each. */
 export function ReportItems({ reports, showReporter = true }: { reports: ReportRow[]; showReporter?: boolean }) {
@@ -21,6 +52,7 @@ export function ReportItems({ reports, showReporter = true }: { reports: ReportR
             </span>
           </div>
           <p className="mt-2 whitespace-pre-wrap text-sm">{r.message}</p>
+          {r.attempt && <Attempt a={r.attempt} />}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
             {showReporter &&
               (r.reporter_id ? (

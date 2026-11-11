@@ -77,7 +77,10 @@ export function ReportProblem({ kind, slug }: { kind: "lesson" | "problem"; slug
           placeholder="e.g. In the second worked example, step 3 says the window shrinks, but the code grows it."
         />
       </label>
-      <p className="mt-1 text-xs text-muted">Only the Ascend team sees reports, with your name and email so we can follow up.</p>
+      <p className="mt-1 text-xs text-muted">
+        Only the Ascend team sees reports, with your name and email so we can follow up.
+        {kind === "problem" && " Your latest graded attempt at this problem is attached, so we can check it if the problem is the tests."}
+      </p>
       {send.error ? <ErrorBox error={send.error} className="mt-2" /> : null}
       <div className="mt-3 flex gap-2">
         <Button type="submit" disabled={send.isPending || tooShort}>

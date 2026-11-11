@@ -160,11 +160,13 @@ account there, and an admin's account cannot be deleted until the role is remove
 **Locked-out learners.** "Send password reset link" on a user's page needs email. Without it (or when
 the learner never gets the email), "Copy a password reset link" gives you the link to pass on yourself:
 it works once, for an hour, replaces any earlier reset link, and the audit log records that you took it.
+Unlike an emailed link, using it does not mark the address as confirmed.
 
 **Problem reports.** Learners report mistakes, broken pieces and unclear explanations from the foot of
 each lesson and problem (10 an hour, 25 open at most per learner). Work the queue at `/admin/reports`:
-fix the content in the repo, deploy, then mark the report resolved (or dismiss it). Closed reports are
-deleted a year after closing.
+fix the content in the repo, deploy, then mark the report resolved (or dismiss it). A report on a coding
+problem carries the reporter's latest attempt at it; "View code" on the card opens it (audited). Closed
+reports are deleted a year after closing.
 
 **Weekly email.** Every Monday at 16:00 UTC the hourly maintenance loop emails each admin a summary of
 the previous week (sign-ups, activity, AI use, new reports, where learners went quiet). It needs email

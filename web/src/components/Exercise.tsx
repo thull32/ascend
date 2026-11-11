@@ -1,21 +1,21 @@
 // Live-coding block used by lessons (exercise fences) and reused by the
 // Problem page. Runs tests in a worker, shows per-test results, persists a
 // submission when signed in, and can hand the code to the coach.
-import { CheckCircle2, ChevronDown, Lightbulb, Play, RotateCcw, XCircle } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, ChevronDown, History, Lightbulb, Play, RotateCcw, XCircle } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useInvalidateProgress } from "../lib/queries";
 import type { ExerciseSpec, GradedSubmission, Submission, TestCase } from "../lib/types";
-import { cn } from "../lib/utils";
+import { cn, timeAgo } from "../lib/utils";
 import { onRunnerStatus, runTests, warmRunner } from "../runner";
 import type { RunResponse, TestResult } from "../runner/protocol";
 import { CodeEditor, type Language } from "./CodeEditor";
 import { Button, ErrorBox } from "./ui";
 import { useCoachDock } from "./CoachDock";
 import { Markdown } from "./Markdown";
-import { PastAttempts } from "./PastAttempts";
+import { PastAttempts, pastAttemptsKey } from "./PastAttempts";
 
 interface Props {
   source: string;
@@ -82,6 +82,16 @@ function storageKey(slug: string, lang: string) {
   return `ascend:code:${slug}:${lang}`;
 }
 
+const declinedKey = (slug: string) => `ascend:code:${slug}:no-restore`;
+
+function declined(slug: string) {
+  try {
+    return localStorage.getItem(declinedKey(slug)) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function CodeRunner(props: CodeRunnerProps) {
   const { user } = useAuth();
   const invalidate = useInvalidateProgress();
@@ -97,7 +107,17 @@ export function CodeRunner(props: CodeRunnerProps) {
   const [hintsShown, setHintsShown] = useState(0);
   const [showHidden, setShowHidden] = useState(false);
   const [saved, setSaved] = useState<Verdict | null>(null);
+  /** The attempt put in the editor on arrival, when the browser had no draft. */
+  const [restored, setRestored] = useState<Submission | null>(null);
   const runId = useRef(0);
+  const restoredFor = useRef<string | null>(null);
+  const persist = !!user && props.persist !== false;
+  const attempts = useQuery({
+    queryKey: pastAttemptsKey(user?.id, props.targetSlug),
+    queryFn: () => api.get<Submission[]>(`/submissions/${encodeURIComponent(props.targetSlug)}`),
+    enabled: persist,
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
     warmRunner(language);
@@ -124,6 +144,7 @@ export function CodeRunner(props: CodeRunnerProps) {
 
   const run = async () => {
     const id = ++runId.current;
+    setRestored(null);
     setRunning(true);
     setResult(null);
     setSaved(null);
@@ -168,14 +189,21 @@ export function CodeRunner(props: CodeRunnerProps) {
   const reset = () => {
     setCode(props.starter[language] ?? "");
     setResult(null);
+    if (restored) {
+      // They chose a clean start: do not restore this target again here.
+      try {
+        localStorage.setItem(declinedKey(props.targetSlug), "1");
+      } catch {
+        /* ignore */
+      }
+    }
+    setRestored(null);
   };
 
   /** Puts a past attempt in the editor, switching language if it needs to
    *  (the language effect then loads it from the draft just written). */
-  const loadAttempt = (s: Submission) => {
+  const applyAttempt = (s: Submission) => {
     const lang = s.language as Language;
-    const current = code.trim();
-    if (current && current !== (props.starter[language] ?? "").trim() && current !== s.code.trim() && !confirm("Replace the code in the editor with this attempt?")) return;
     setResult(null);
     setSaved(null);
     if (lang === language) {
@@ -189,6 +217,26 @@ export function CodeRunner(props: CodeRunnerProps) {
     }
     setLanguage(lang);
   };
+
+  const loadAttempt = (s: Submission) => {
+    const current = code.trim();
+    if (current && current !== (props.starter[language] ?? "").trim() && current !== s.code.trim() && !confirm("Replace the code in the editor with this attempt?")) return;
+    setRestored(null);
+    applyAttempt(s);
+  };
+
+  // On arrival with nothing written here yet (a new device or browser), pick
+  // up where the learner left off: their latest attempt, once per target.
+  useEffect(() => {
+    if (!attempts.data || restoredFor.current === props.targetSlug) return;
+    restoredFor.current = props.targetSlug;
+    const last = attempts.data[0];
+    const untouched = code.trim() === (props.starter[language] ?? "").trim() && !declined(props.targetSlug);
+    if (!last || !untouched || !langs.includes(last.language as Language) || last.code.trim() === code.trim()) return;
+    applyAttempt(last);
+    setRestored(last);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempts.data, props.targetSlug]);
 
   const passed = result ? result.results.filter((r) => r.passed).length : 0;
   const total = props.tests.length;
@@ -216,6 +264,17 @@ export function CodeRunner(props: CodeRunnerProps) {
           <Play className="h-4 w-4" /> {running ? "Running…" : "Run tests"}
         </Button>
       </div>
+      {restored && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-line bg-elev-2/50 px-3 py-1.5 text-xs text-muted" data-testid="restored-attempt">
+          <History className="h-3.5 w-3.5" />
+          <span>
+            Picked up your last attempt from {timeAgo(restored.created_at)} ({restored.passed ? "passed" : "failed"} {restored.passed_count}/{restored.total_count}).
+          </span>
+          <button className="ml-auto text-accent hover:underline" onClick={reset}>
+            Start from the starter code
+          </button>
+        </div>
+      )}
       <CodeEditor value={code} onChange={setCode} language={language} height={props.height ?? "340px"} />
       {result && (
         <div className="border-t border-line px-3 py-3" data-testid="results">
@@ -277,7 +336,7 @@ export function CodeRunner(props: CodeRunnerProps) {
           ))}
         </ol>
       )}
-      {user && props.persist !== false && <PastAttempts targetSlug={props.targetSlug} languages={langs} onLoad={loadAttempt} />}
+      {persist && <PastAttempts targetSlug={props.targetSlug} languages={langs} onLoad={loadAttempt} />}
     </div>
   );
 }

@@ -403,7 +403,12 @@ struct NewPassword<'a> {
 /// What a single-use email link is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkPurpose {
+    /// Emailed to the account's address by "forgot password".
     Reset,
+    /// Made by an admin to pass on by hand (when email cannot reach the
+    /// learner). Sets a password like `Reset`, but does not prove the
+    /// learner controls the address.
+    HandedReset,
     Verify,
 }
 
@@ -411,7 +416,17 @@ impl LinkPurpose {
     fn as_str(self) -> &'static str {
         match self {
             LinkPurpose::Reset => "reset",
+            LinkPurpose::HandedReset => "reset_admin",
             LinkPurpose::Verify => "verify",
+        }
+    }
+
+    /// Purposes a new link supersedes: an account has one live reset link,
+    /// however it was made.
+    fn supersedes(self) -> Vec<String> {
+        match self {
+            LinkPurpose::Reset | LinkPurpose::HandedReset => vec!["reset".into(), "reset_admin".into()],
+            LinkPurpose::Verify => vec!["verify".into()],
         }
     }
 
@@ -419,7 +434,7 @@ impl LinkPurpose {
     /// links only confirm an address the learner already signed up with.
     fn ttl(self) -> Duration {
         match self {
-            LinkPurpose::Reset => Duration::hours(1),
+            LinkPurpose::Reset | LinkPurpose::HandedReset => Duration::hours(1),
             LinkPurpose::Verify => Duration::days(7),
         }
     }
@@ -450,14 +465,14 @@ impl AuthService {
     }
 
     /// Creates a single-use link token for `user`, replacing any older link
-    /// of the same purpose, and returns what to email.
+    /// it supersedes, and returns what to send.
     async fn issue_link(&self, user: &users::Model, purpose: LinkPurpose) -> AppResult<EmailLink> {
         let raw = token::generate();
         let txn = self.db.begin().await?;
         txn.execute_raw(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
-            "DELETE FROM email_tokens WHERE user_id = $1 AND purpose = $2",
-            [user.id.into(), purpose.as_str().into()],
+            "DELETE FROM email_tokens WHERE user_id = $1 AND purpose = ANY($2)",
+            [user.id.into(), purpose.supersedes().into()],
         ))
         .await?;
         txn.execute_raw(Statement::from_sql_and_values(
@@ -478,8 +493,9 @@ impl AuthService {
 
     /// Consumes a link token atomically: the row is deleted as it is read,
     /// so a link works once even if clicked twice at the same moment.
-    /// Returns the user it belongs to, if the address has not changed since.
-    async fn consume_link(&self, raw: &str, purpose: LinkPurpose) -> AppResult<users::Model> {
+    /// Returns the user it belongs to, if the address has not changed since,
+    /// and which of `purposes` the link was.
+    async fn consume_link(&self, raw: &str, purposes: &[LinkPurpose]) -> AppResult<(users::Model, LinkPurpose)> {
         if !token::looks_valid(raw) {
             return Err(AppError::validation(INVALID_LINK));
         }
@@ -487,19 +503,23 @@ impl AuthService {
             .db
             .query_one_raw(Statement::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                "DELETE FROM email_tokens WHERE token_hash = $1 AND purpose = $2 AND expires_at > now() \
-                 RETURNING user_id, email",
-                [token::hash(raw).into(), purpose.as_str().into()],
+                "DELETE FROM email_tokens WHERE token_hash = $1 AND purpose = ANY($2) AND expires_at > now() \
+                 RETURNING user_id, email, purpose",
+                [token::hash(raw).into(), purposes.iter().map(|p| p.as_str().to_owned()).collect::<Vec<_>>().into()],
             ))
             .await?
             .ok_or_else(|| AppError::validation(INVALID_LINK))?;
         let user_id: Uuid = row.try_get("", "user_id")?;
         let email: String = row.try_get("", "email")?;
-        Users::find_by_id(user_id)
+        let stored: String = row.try_get("", "purpose")?;
+        let purpose =
+            *purposes.iter().find(|p| p.as_str() == stored).ok_or_else(|| AppError::validation(INVALID_LINK))?;
+        let user = Users::find_by_id(user_id)
             .one(&self.db)
             .await?
             .filter(|u| u.email == email)
-            .ok_or_else(|| AppError::validation(INVALID_LINK))
+            .ok_or_else(|| AppError::validation(INVALID_LINK))?;
+        Ok((user, purpose))
     }
 
     /// Starts a password reset. `None` when no account has that address;
@@ -512,9 +532,17 @@ impl AuthService {
         Ok(Some(self.issue_link(&user, LinkPurpose::Reset).await?))
     }
 
+    /// A reset link for an admin to pass on by hand. It replaces any emailed
+    /// reset link, and following it does not verify the address.
+    pub async fn handed_password_reset(&self, user_id: Uuid) -> AppResult<EmailLink> {
+        let user = Users::find_by_id(user_id).one(&self.db).await?.ok_or(AppError::NotFound("user"))?;
+        self.issue_link(&user, LinkPurpose::HandedReset).await
+    }
+
     /// Sets a new password from a reset link, signs the account out
-    /// everywhere, and signs this browser in. Following the link also proves
-    /// the learner controls the address, so it counts as verification.
+    /// everywhere, and signs this browser in. Following an emailed link also
+    /// proves the learner controls the address, so it counts as
+    /// verification; a link an admin handed over does not.
     pub async fn reset_password(
         &self,
         raw: &str,
@@ -522,12 +550,14 @@ impl AuthService {
         user_agent: Option<String>,
     ) -> AppResult<(CurrentUser, NewSession)> {
         self.screen_password(&new_password).await?;
-        let user = self.consume_link(raw, LinkPurpose::Reset).await?;
+        let (user, purpose) = self.consume_link(raw, &[LinkPurpose::Reset, LinkPurpose::HandedReset]).await?;
         let password_hash = password::hash(new_password).await?;
         let now = Utc::now();
         let mut active: users::ActiveModel = user.clone().into();
         active.password_hash = Set(password_hash);
-        active.email_verified_at = Set(Some(user.email_verified_at.unwrap_or(now)));
+        if purpose == LinkPurpose::Reset {
+            active.email_verified_at = Set(Some(user.email_verified_at.unwrap_or(now)));
+        }
         active.last_login_at = Set(Some(now));
         active.updated_at = Set(now);
         let user = active.update(&self.db).await?;
@@ -547,7 +577,7 @@ impl AuthService {
     }
 
     pub async fn verify_email(&self, raw: &str) -> AppResult<CurrentUser> {
-        let user = self.consume_link(raw, LinkPurpose::Verify).await?;
+        let (user, _) = self.consume_link(raw, &[LinkPurpose::Verify]).await?;
         let mut active: users::ActiveModel = user.clone().into();
         active.email_verified_at = Set(Some(user.email_verified_at.unwrap_or_else(Utc::now)));
         active.updated_at = Set(Utc::now());

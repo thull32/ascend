@@ -1,12 +1,14 @@
 import { Link } from "react-router";
 import { PageTitle } from "../components/ui";
+import { PRIVACY_UPDATED } from "../lib/privacy";
 import { useFeatures } from "../lib/queries";
 
 // Plain-language description of what the software does with data. Every
 // statement here is checked against the code: when the code changes (a new
 // third party, a new table, a retention period), change this page with it.
 // Retention periods are enforced by crates/core/src/services/retention.rs.
-export const PRIVACY_UPDATED = "10 November 2026";
+// The date (and the one-line summary of what changed, shown to existing
+// learners) lives in lib/privacy.ts.
 
 export default function Privacy() {
   const features = useFeatures();
@@ -32,7 +34,7 @@ export default function Privacy() {
           <strong>Your learning:</strong> lessons you complete, quiz answers, code you submit for grading and the result (you can see your
           past attempts under each exercise and problem), activity days (for
           your streak), where you are in each audio episode and which you have finished, your daily review schedule (which quiz questions
-          are due when, and the ones you mark as missed), comments you post, problems you report in lessons and problems, conversations with
+          are due when, and the ones you mark as missed), comments you post, problems you report in lessons and problems (a report on a coding problem includes your latest attempt at it), conversations with
           the AI coach, and mock interview transcripts and grades. If you joined with an invite, which invite it was.
         </li>
         <li>
