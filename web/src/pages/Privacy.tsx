@@ -6,7 +6,7 @@ import { useFeatures } from "../lib/queries";
 // statement here is checked against the code: when the code changes (a new
 // third party, a new table, a retention period), change this page with it.
 // Retention periods are enforced by crates/core/src/services/retention.rs.
-export const PRIVACY_UPDATED = "5 November 2026";
+export const PRIVACY_UPDATED = "10 November 2026";
 
 export default function Privacy() {
   const features = useFeatures();
@@ -29,7 +29,8 @@ export default function Privacy() {
           time zone. The password is stored only as an Argon2id hash; we never see it.
         </li>
         <li>
-          <strong>Your learning:</strong> lessons you complete, quiz answers, code you submit for grading and the result, activity days (for
+          <strong>Your learning:</strong> lessons you complete, quiz answers, code you submit for grading and the result (you can see your
+          past attempts under each exercise and problem), activity days (for
           your streak), where you are in each audio episode and which you have finished, your daily review schedule (which quiz questions
           are due when, and the ones you mark as missed), comments you post, problems you report in lessons and problems, conversations with
           the AI coach, and mock interview transcripts and grades. If you joined with an invite, which invite it was.
@@ -54,9 +55,11 @@ export default function Privacy() {
         account details, your progress, quiz and interview scores, whether your graded attempts passed, your AI usage counts, your sign-in
         sessions, the invite you joined with, and the problem reports you send (with your name and email, so we can follow up). Progress is
         also counted across everyone, to see where learners get stuck; a weekly summary email to admins holds only those totals and lesson
-        titles, never your name, email or what you wrote. It does not show the code you submit, your conversations with the AI coach or your interview transcripts. Admins can sign
-        you out, send you a password-reset link, remove a comment or delete an account; each of those is recorded in an audit log, kept for a
-        year, which holds no email addresses or comment text.
+        titles, never your name, email or what you wrote. The code you submit for grading is never listed there: an admin can open one attempt at
+        a time, for example to answer your question about it or to check a problem you reported, and every opening is recorded in the audit
+        log. It does not show your conversations with the AI coach or your interview transcripts. Admins can sign you out, send you a
+        password-reset link (or make one to pass on to you when email cannot reach you), remove a comment or delete an account. Each of those is
+        recorded in the same audit log, kept for a year, which holds no email addresses, comment text or code.
       </p>
 
       <h2>Who else processes it</h2>

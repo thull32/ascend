@@ -141,8 +141,9 @@ To add a host: run `railway domain <host> --service <svc>` (custom domains canno
 
 The admin dashboard is at `/admin` (a shield icon in the header) for accounts with the `admin` role:
 users and their progress, a sign-up funnel, content usage, problem reports, comment moderation,
-invites (with the accounts each created), AI usage and an audit log of every admin change. It deliberately does not show learners' code, coach conversations or interview
-transcripts (the privacy page says so).
+invites (with the accounts each created), AI usage and an audit log of every admin change. It deliberately does not show coach
+conversations or interview transcripts. Submitted code is never listed: "View code" on a user's page opens one attempt, and each
+opening is audited (the privacy page says so). Open it only to answer the learner or check a report.
 
 The production image has no shell, so make the first admin with the operator token:
 

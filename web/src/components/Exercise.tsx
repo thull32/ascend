@@ -2,11 +2,12 @@
 // Problem page. Runs tests in a worker, shows per-test results, persists a
 // submission when signed in, and can hand the code to the coach.
 import { CheckCircle2, ChevronDown, Lightbulb, Play, RotateCcw, XCircle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useInvalidateProgress } from "../lib/queries";
-import type { ExerciseSpec, GradedSubmission, TestCase } from "../lib/types";
+import type { ExerciseSpec, GradedSubmission, Submission, TestCase } from "../lib/types";
 import { cn } from "../lib/utils";
 import { onRunnerStatus, runTests, warmRunner } from "../runner";
 import type { RunResponse, TestResult } from "../runner/protocol";
@@ -14,6 +15,7 @@ import { CodeEditor, type Language } from "./CodeEditor";
 import { Button, ErrorBox } from "./ui";
 import { useCoachDock } from "./CoachDock";
 import { Markdown } from "./Markdown";
+import { PastAttempts } from "./PastAttempts";
 
 interface Props {
   source: string;
@@ -83,6 +85,7 @@ function storageKey(slug: string, lang: string) {
 export function CodeRunner(props: CodeRunnerProps) {
   const { user } = useAuth();
   const invalidate = useInvalidateProgress();
+  const qc = useQueryClient();
   const dock = useCoachDock();
   const langs = props.languages.filter((l) => l in props.starter) as Language[];
   const preferred = (user?.preferred_language ?? "python") as Language;
@@ -144,6 +147,7 @@ export function CodeRunner(props: CodeRunnerProps) {
           if (id !== runId.current) return;
           setSaved(serverVerdict(graded, passedCount === props.tests.length));
           invalidate();
+          void qc.invalidateQueries({ queryKey: ["submissions"] });
         } catch (e) {
           if (id !== runId.current) return;
           setSaved({
@@ -164,6 +168,26 @@ export function CodeRunner(props: CodeRunnerProps) {
   const reset = () => {
     setCode(props.starter[language] ?? "");
     setResult(null);
+  };
+
+  /** Puts a past attempt in the editor, switching language if it needs to
+   *  (the language effect then loads it from the draft just written). */
+  const loadAttempt = (s: Submission) => {
+    const lang = s.language as Language;
+    const current = code.trim();
+    if (current && current !== (props.starter[language] ?? "").trim() && current !== s.code.trim() && !confirm("Replace the code in the editor with this attempt?")) return;
+    setResult(null);
+    setSaved(null);
+    if (lang === language) {
+      setCode(s.code);
+      return;
+    }
+    try {
+      localStorage.setItem(storageKey(props.targetSlug, lang), s.code);
+    } catch {
+      /* ignore */
+    }
+    setLanguage(lang);
   };
 
   const passed = result ? result.results.filter((r) => r.passed).length : 0;
@@ -253,6 +277,7 @@ export function CodeRunner(props: CodeRunnerProps) {
           ))}
         </ol>
       )}
+      {user && props.persist !== false && <PastAttempts targetSlug={props.targetSlug} languages={langs} onLoad={loadAttempt} />}
     </div>
   );
 }

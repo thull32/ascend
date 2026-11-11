@@ -95,6 +95,21 @@ export interface AuditEntry {
   created_at: string;
 }
 
+export interface SubmissionCode {
+  id: string;
+  user_id: string;
+  target_kind: string;
+  target_slug: string;
+  language: string;
+  code: string;
+  passed: boolean;
+  passed_count: number;
+  total_count: number;
+  runtime_ms: number | null;
+  results: unknown;
+  created_at: string;
+}
+
 export interface UserDetail {
   account: Account;
   progress: ProgressSummary;
@@ -265,6 +280,8 @@ export const adminApi = {
   setRole: (id: string, role: "user" | "admin") => api.put<Account>(`/admin/users/${id}/role`, { role }),
   signOut: (id: string) => api.post<{ sessions: number }>(`/admin/users/${id}/sign-out`),
   passwordReset: (id: string) => api.post<{ ok: boolean }>(`/admin/users/${id}/password-reset`),
+  /** Opens one attempt's code; the server audits each opening. */
+  submissionCode: (id: string) => api.post<SubmissionCode>(`/admin/submissions/${id}/code`),
   passwordResetLink: (id: string) => api.post<{ url: string; expires_in_minutes: number }>(`/admin/users/${id}/password-reset-link`),
   deleteUser: (id: string) => api.delete<{ ok: boolean }>(`/admin/users/${id}`),
   deleteComment: (id: string) => api.delete<{ ok: boolean }>(`/admin/comments/${id}`),

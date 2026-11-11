@@ -783,6 +783,38 @@ async fn admins_manage_learners_and_every_change_is_audited() {
         .await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
 
+    // Submitted code: the learner sees their own attempts; an admin opens one
+    // at a time, and each opening is audited without the code.
+    let submission = uuid::Uuid::now_v7();
+    app.db
+        .execute_raw(Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            "INSERT INTO submissions (id, user_id, target_kind, target_slug, language, code, passed, passed_count, \
+               total_count, results) VALUES ($1, $2, 'exercise', 'basics/intro/hello#add', 'python', \
+               'def add(a, b): return a - b  # private attempt', false, 0, 2, '[]')",
+            [submission.into(), uuid::Uuid::parse_str(&learner_id).unwrap().into()],
+        ))
+        .await
+        .unwrap();
+    let mine = app.call("GET", "/api/submissions/basics%2Fintro%2Fhello%23add", None, Some(&learner), false).await;
+    assert_eq!(mine.status, StatusCode::OK, "{}", mine.body);
+    assert_eq!(mine.body[0]["code"], "def add(a, b): return a - b  # private attempt");
+    let (other, _) = app.register().await;
+    let theirs = app.call("GET", "/api/submissions/basics%2Fintro%2Fhello%23add", None, Some(&other), false).await;
+    assert_eq!(theirs.body, json!([]), "only your own attempts");
+    let detail = app.call("GET", &format!("/api/admin/users/{learner_id}"), None, Some(&admin), false).await;
+    assert!(!detail.body.to_string().contains("private attempt"), "the user page never lists code");
+    let path = format!("/api/admin/submissions/{submission}/code");
+    assert_eq!(app.call("POST", &path, Some(json!({})), Some(&learner), true).await.status, StatusCode::FORBIDDEN);
+    let r = app.call("POST", &path, Some(json!({})), Some(&admin), true).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    assert_eq!(
+        (r.body["code"].as_str(), r.body["user_id"].as_str()),
+        (Some("def add(a, b): return a - b  # private attempt"), Some(learner_id.as_str()))
+    );
+    let missing = format!("/api/admin/submissions/{}/code", uuid::Uuid::now_v7());
+    assert_eq!(app.call("POST", &missing, Some(json!({})), Some(&admin), true).await.status, StatusCode::NOT_FOUND);
+
     // Moderation, sign-out and deletion.
     let r = app.call("DELETE", &format!("/api/admin/comments/{comment_id}"), None, Some(&admin), true).await;
     assert_eq!(r.status, StatusCode::OK);
@@ -849,6 +881,7 @@ async fn admins_manage_learners_and_every_change_is_audited() {
         actions,
         [
             ("set_role", "operator token"),
+            ("view_submission_code", by_admin),
             ("delete_comment", by_admin),
             ("sign_out_everywhere", by_admin),
             ("copy_password_reset_link", by_admin),
@@ -856,7 +889,10 @@ async fn admins_manage_learners_and_every_change_is_audited() {
         ]
     );
     let text = serde_json::to_string(&mine).unwrap();
-    assert!(!text.contains(&learner_email) && !text.contains("secret words"), "{text}");
+    assert!(
+        !text.contains(&learner_email) && !text.contains("secret words") && !text.contains("private attempt"),
+        "{text}"
+    );
 
     assert_eq!(
         app.call("GET", "/api/admin/ai-usage?days=0", None, Some(&admin), false).await.status,

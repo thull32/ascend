@@ -42,6 +42,7 @@ pub fn router() -> Router<AppState> {
         .route("/admin/users/{id}/sign-out", post(sign_out))
         .route("/admin/users/{id}/password-reset", post(password_reset))
         .route("/admin/users/{id}/password-reset-link", post(password_reset_link))
+        .route("/admin/submissions/{id}/code", post(submission_code))
         .route("/admin/roles", put(set_role_by_email))
         .route("/admin/content", get(content))
         .route("/admin/comments", get(comments))
@@ -158,6 +159,16 @@ async fn password_reset(
     let email = state.admin.password_reset_requested(&actor, id).await?;
     super::auth::send_password_reset(&state, email);
     Ok(Json(json!({ "ok": true })))
+}
+
+/// One attempt's code. A POST, not a GET: opening it is an audited action,
+/// so it must not happen on a refetch or prefetch.
+async fn submission_code(
+    Operator(actor): Operator,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<ascend_core::services::admin::SubmissionCode>> {
+    Ok(Json(state.admin.submission_code(&actor, id).await?))
 }
 
 /// A single-use reset link for the admin to pass on (works without email).

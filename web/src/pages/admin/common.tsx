@@ -74,6 +74,7 @@ const ACTIONS: Record<string, string> = {
   delete_user: "Deleted account",
   send_password_reset: "Sent password reset",
   copy_password_reset_link: "Took a password reset link",
+  view_submission_code: "Viewed submitted code",
   delete_comment: "Removed comment",
   create_invite: "Created invite",
   revoke_invite: "Revoked invite",

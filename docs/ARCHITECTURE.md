@@ -114,8 +114,10 @@ See [ADR 0002](adr/0002-server-side-sessions.md).
 the `admin` role (read from the database on every request, so a demotion is immediate) or the
 `ADMIN_TOKEN` bearer secret, which is how the first admin is made. It shows accounts, progress,
 scores, usage, sessions and content engagement, and acts on accounts (role, sign-out everywhere,
-password-reset link, deletion), comments and invites. It never returns learners' code, coach
-messages or interview transcripts. Every change is written to `admin_audit` in the same transaction
+password-reset link, deletion), comments and invites. It never returns coach messages or interview
+transcripts, and never lists submitted code: `POST /api/admin/submissions/{id}/code` returns one
+attempt and audits the opening (a POST so a refetch cannot open it silently). Learners read their
+own attempts with `GET /api/submissions/{target}` (the editor's "Your past attempts"). Every change is written to `admin_audit` in the same transaction
 as the change, with the actor; the log holds account UUIDs but no emails or comment text, and
 retention drops it after a year. Guard rails are in the service, not the UI: nobody can remove their
 own admin role, and admins cannot be deleted until demoted, so the last admin cannot lock everyone out.

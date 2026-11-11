@@ -1,10 +1,11 @@
 //! The admin dashboard: read models over every learner and over the content,
 //! and the account actions an operator takes.
 //!
-//! What it deliberately does not show: the code learners submit, their
-//! coach conversations and their interview transcripts. Those stay between
-//! the learner and the product (the privacy page says so). Admins see
-//! accounts, progress, scores, counts and usage.
+//! What it deliberately does not show: learners' coach conversations and
+//! interview transcripts. Those stay between the learner and the product
+//! (the privacy page says so). Admins see accounts, progress, scores, counts
+//! and usage. Submitted code is never listed: an admin opens one attempt at
+//! a time ([`AdminService::submission_code`]) and each opening is audited.
 //!
 //! Every change goes into the audit log (`admin_audit`, m0017) with who made
 //! it. The log never stores email addresses or comment text, so it holds no
@@ -226,6 +227,25 @@ pub struct SubmissionRow {
     pub passed_count: i16,
     pub total_count: i16,
     pub runtime_ms: Option<i32>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A graded attempt with its code, returned only by
+/// [`AdminService::submission_code`], which audits the opening.
+#[derive(Debug, Serialize)]
+pub struct SubmissionCode {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub target_kind: String,
+    pub target_slug: String,
+    pub language: String,
+    pub code: String,
+    pub passed: bool,
+    pub passed_count: i16,
+    pub total_count: i16,
+    pub runtime_ms: Option<i32>,
+    /// The server's verdict per test, as recorded at grading.
+    pub results: serde_json::Value,
     pub created_at: DateTime<Utc>,
 }
 
@@ -756,6 +776,35 @@ impl AdminService {
         let user = Users::find_by_id(id).one(&self.db).await?.ok_or(AppError::NotFound("user"))?;
         record(&self.db, actor, "send_password_reset", Some(id), serde_json::json!({})).await?;
         Ok(user.email)
+    }
+
+    /// One graded attempt with its code, for an admin who opened it (to
+    /// answer a question about it, or check a problem report). Every opening
+    /// is audited, naming the attempt but never holding the code.
+    pub async fn submission_code(&self, actor: &Actor, id: Uuid) -> AppResult<SubmissionCode> {
+        let s = Submissions::find_by_id(id).one(&self.db).await?.ok_or(AppError::NotFound("submission"))?;
+        record(
+            &self.db,
+            actor,
+            "view_submission_code",
+            Some(s.user_id),
+            serde_json::json!({ "submission": s.id, "target_kind": s.target_kind, "target_slug": s.target_slug }),
+        )
+        .await?;
+        Ok(SubmissionCode {
+            id: s.id,
+            user_id: s.user_id,
+            target_kind: s.target_kind,
+            target_slug: s.target_slug,
+            language: s.language,
+            code: s.code,
+            passed: s.passed,
+            passed_count: s.passed_count,
+            total_count: s.total_count,
+            runtime_ms: s.runtime_ms,
+            results: s.results,
+            created_at: s.created_at,
+        })
     }
 
     /// Records that an admin took a password-reset link to hand over

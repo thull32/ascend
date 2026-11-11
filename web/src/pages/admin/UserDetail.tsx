@@ -99,26 +99,13 @@ function Page({ d }: { d: Detail }) {
       </Section>
 
       <Section title="Graded submissions">
-        <p className="mb-2 text-xs text-muted">The most recent 50. Code is not shown here: it stays between the learner and the grader.</p>
+        <p className="mb-2 text-xs text-muted">The most recent 50. Open an attempt's code only when you need it, to answer the learner or check a report: each opening is recorded in the audit log.</p>
         {d.submissions.length === 0 ? (
           <Empty />
         ) : (
-          <Table head={["When", "Target", "Language", "Result", "Runtime"]}>
+          <Table head={["When", "Target", "Language", "Result", "Runtime", ""]}>
             {d.submissions.map((s) => (
-              <tr key={s.id}>
-                <Td className="whitespace-nowrap text-muted">{fmtDateTime(s.created_at)}</Td>
-                <Td>
-                  <Link className="hover:text-accent" to={s.target_kind === "problem" ? `/practice/${s.target_slug}` : `/learn/${s.target_slug.split("#")[0]}`}>
-                    {s.target_slug}
-                  </Link>
-                  <span className="ml-2 text-xs text-muted">{s.target_kind}</span>
-                </Td>
-                <Td>{s.language}</Td>
-                <Td className={cn("whitespace-nowrap tabular-nums", s.passed ? "text-success" : "text-danger")}>
-                  {s.passed ? "passed" : "failed"} {s.passed_count}/{s.total_count}
-                </Td>
-                <Td className="tabular-nums text-muted">{s.runtime_ms != null ? `${s.runtime_ms} ms` : "—"}</Td>
-              </tr>
+              <SubmissionLine key={s.id} s={s} />
             ))}
           </Table>
         )}
@@ -355,5 +342,46 @@ function Actions({ d }: { d: Detail }) {
       )}
       <p className="mt-4 text-xs text-muted">Every action is recorded in the audit log.</p>
     </Card>
+  );
+}
+
+/** One attempt; its code is fetched (and audited) only when opened. */
+function SubmissionLine({ s }: { s: Detail["submissions"][number] }) {
+  const open = useAdminAction(() => adminApi.submissionCode(s.id));
+  const [shown, setShown] = useState(false);
+  const toggle = () => {
+    if (shown) return setShown(false);
+    if (open.data) return setShown(true);
+    open.mutate(undefined, { onSuccess: () => setShown(true) });
+  };
+  return (
+    <>
+      <tr>
+        <Td className="whitespace-nowrap text-muted">{fmtDateTime(s.created_at)}</Td>
+        <Td>
+          <Link className="hover:text-accent" to={s.target_kind === "problem" ? `/practice/${s.target_slug}` : `/learn/${s.target_slug.split("#")[0]}`}>
+            {s.target_slug}
+          </Link>
+          <span className="ml-2 text-xs text-muted">{s.target_kind}</span>
+        </Td>
+        <Td>{s.language}</Td>
+        <Td className={cn("whitespace-nowrap tabular-nums", s.passed ? "text-success" : "text-danger")}>
+          {s.passed ? "passed" : "failed"} {s.passed_count}/{s.total_count}
+        </Td>
+        <Td className="tabular-nums text-muted">{s.runtime_ms != null ? `${s.runtime_ms} ms` : "—"}</Td>
+        <Td className="text-right">
+          <Button variant="ghost" className="whitespace-nowrap px-2 py-0.5 text-xs" disabled={open.isPending} onClick={toggle} aria-expanded={shown} data-testid="view-code">
+            {shown ? "Hide code" : open.isPending ? "Opening…" : "View code"}
+          </Button>
+        </Td>
+      </tr>
+      {(shown || open.error) && (
+        <tr>
+          <td colSpan={6} className="px-3 pb-3">
+            {open.error ? <ErrorBox error={open.error} /> : <pre className="max-h-96 overflow-auto rounded-lg border border-line bg-code p-3 font-mono text-xs leading-relaxed">{open.data?.code}</pre>}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
