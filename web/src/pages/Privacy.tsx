@@ -1,14 +1,12 @@
 import { Link } from "react-router";
 import { PageTitle } from "../components/ui";
-import { PRIVACY_UPDATED } from "../lib/privacy";
 import { useFeatures } from "../lib/queries";
 
 // Plain-language description of what the software does with data. Every
 // statement here is checked against the code: when the code changes (a new
 // third party, a new table, a retention period), change this page with it.
 // Retention periods are enforced by crates/core/src/services/retention.rs.
-// The date (and the one-line summary of what changed, shown to existing
-// learners) lives in lib/privacy.ts.
+export const PRIVACY_UPDATED = "10 November 2026";
 
 export default function Privacy() {
   const features = useFeatures();
